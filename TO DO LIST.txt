@@ -1,0 +1,17 @@
+*Repasar calculo de la mediana
+
+*Hacer un DASH
+
+	- Meter todos los inputs de los metodos como lista de filtros a elegir en el dash
+
+	- Ventana que plotee lo que se ha elegido en los filtros
+
+	- Posibilidad de cambiar los parámetros iniciales del modelo para el cálculo del fit
+
+	- Mostrar la ecuacion que gobierna el Tyre Deg en el dash
+
+	- Mostrar los coeffs independientes de la eq para el Option Tyre
+
+	- Mostrar los coeffs independientes de la eq para el Prime Tyre
+
+	- Boton de volcar a la BBDD cuando se esté de acuerdo con el modelo, y que vuelque Evento / Modelo / Coeff 1 / Coeff 2 / Coeff 3 / Coeff... / Tyre Compound / Track Temp

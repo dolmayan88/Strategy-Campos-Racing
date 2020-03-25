@@ -60,12 +60,9 @@ class Event():
         self.Session = self.Name.split("_")[2]
         self.PdfFlag = int(Heidi_DDBB.GetData("pdf_flag","Calendar","session_id",self.Name).values)
         self.TrackFuelPenalty = float(Heidi_DDBB.GetData("fuel_penalty","Calendar","session_id",self.Name).values)
-        self.NrOfDifferentCompoundsUsed = len(np.unique(Heidi_DDBB.GetData("all","TyreAlloc","session",self.Name)[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].values))-1
+        self.NrOfDifferentCompoundsUsed = len(np.unique(Heidi_DDBB.GetData("all","TyreAlloc","session",self.Name)[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1
         self.PrimeCompound = "".join(c for c in str(Heidi_DDBB.GetData("Prime_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
         self.OptionCompound = "".join(c for c in str(Heidi_DDBB.GetData("Option_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
-        ##Corregir Driver List. No funciona con pdfTiming driver list porque a veces en el Tyre alloc, no salen todos los pilotos
-        ##Como medida provisional, cogemos lista de pilotos de TyreAlloc
-        #En F2_19R01BAH_R1 Tyre alloc no sale LAT ('AI' = 1 de la ddbb) y no se por que
         self.DriverList = Heidi_DDBB.GetData("driver","TyreAlloc","session",self.Name)['driver'].unique().tolist()
         self.NrofLaps = int(Heidi_DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'].max())
         self.DriverEndPosition = Heidi_DDBB.GetData(["driver","position"],"PdfTiming","session",self.Name)[Heidi_DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'] == self.NrofLaps]
@@ -192,17 +189,29 @@ class Event():
         top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
         return top_driver_list
     
-    def PlotValuesByDriversByMedianByModel(self,laps,driverlist,y_median_values,y_model_values,y_values_mode='deg',comp=''):
-        
+    def PlotValuesByDriversByMedianByModel(self,laps,driverlist,y_median_values,y_model_values,y_values_mode='deg',comp='',track_sector='all'):
+        if str.lower(track_sector) == 'all':
+            sector="laptimes_fuel_corrected"
+        elif str.lower(track_sector) == 's1':
+            sector = "s1"
+        elif str.lower(track_sector) == 's2':
+            sector = "s2"
+        elif str.lower(track_sector) == 's3':
+            sector = "s3"
         if str.lower(comp) =='prime':
+           
             laptimes_df=self.LapTimesDf_Prime
             LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
             GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
+            
         elif str.lower(comp) == 'option':
+           
             laptimes_df=self.LapTimesDf_Option
             LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
             GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
+            
         else:
+           
             laptimes_df=self.LapTimesDf
             LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
             GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
@@ -212,18 +221,23 @@ class Event():
         if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):            
             for drivers in self.DriverList:
                 if y_values_mode == 'deg':                    
-                    y_values=GroupByDriver.get_group(drivers)['laptime_fuel_corrected']-GroupByDriver.get_group(drivers)['laptime_fuel_corrected'].min()
+                    y_values=GroupByDriver.get_group(drivers)[sector]-GroupByDriver.get_group(drivers)[sector].min()
                     x_values=GroupByDriver.get_group(drivers)['StintLaps']
                     plt.plot(x_values[:-2],y_values[1:-1])
                 else:
-                    y_values=GroupByDriver.get_group(drivers)['laptime_fuel_corrected']
+                    y_values=GroupByDriver.get_group(drivers)[sector]
                     x_values=GroupByDriver.get_group(drivers)['StintLaps']
                     plt.plot(x_values[:-2],y_values[1:-1])
                     
             
-            
-            plt.plot(laps,y_median_values,marker='o',markersize=8,color='blue')
-            plt.plot(laps,y_model_values,marker='x',markersize=8,color='red')
+            if isinstance(y_median_values,list):
+                plt.plot(laps,y_median_values,marker='o',markersize=8,color='blue')
+            else:
+                pass
+            if isinstance(y_model_values,list):
+                plt.plot(laps,y_model_values,marker='x',markersize=8,color='red')
+            else:
+                pass
             plt.show()    
                 
                 
@@ -231,23 +245,29 @@ class Event():
             for drivers in driverlist:
                 
                 if y_values_mode == 'deg':
-                    y_values=GroupByDriver.get_group(drivers)['laptime_fuel_corrected']-GroupByDriver.get_group(drivers)['laptime_fuel_corrected'].min()
+                    y_values=GroupByDriver.get_group(drivers)[sector]-GroupByDriver.get_group(drivers)[sector].min()
                     x_values=GroupByDriver.get_group(drivers)['StintLaps']
                     plt.plot(x_values[:-2],y_values[1:-1])
                 else:
-                    y_values=GroupByDriver.get_group(drivers)['laptime_fuel_corrected']
+                    y_values=GroupByDriver.get_group(drivers)[sector]
                     x_values=GroupByDriver.get_group(drivers)['StintLaps']
                     plt.plot(x_values[:-2],y_values[1:-1])
                     
             
-            plt.plot(laps,y_median_values,marker='o',markersize=8,color='blue')
-            plt.plot(laps,y_model_values,marker='x',markersize=8,color='red')
-            plt.show()    
+            if isinstance(y_median_values,np.ndarray):
+                plt.plot(laps,y_median_values,marker='o',markersize=8,color='blue')
+            else:
+                pass
+            if isinstance(y_model_values,np.ndarray):
+                plt.plot(laps,y_model_values,marker='x',markersize=8,color='red')
+            else:
+                pass
+            plt.show()     
                 
         
         
         
-    def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode='deg'):
+    def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode='deg',track_sector='all'):
         """
        Inputs:
            driverlist -> Here we can enter the filter for the drivers. 
@@ -260,14 +280,22 @@ class Event():
         """
         
         "User entering driverlist='all' or ''"
+        if str.lower(track_sector) == 'all':
+            sector="laptimes_fuel_corrected"
+        elif str.lower(track_sector) == 's1':
+            sector = "s1"
+        elif str.lower(track_sector) == 's2':
+            sector = "s2"
+        elif str.lower(track_sector) == 's3':
+            sector = "s3"
+            
         if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):  
             laps=self.NrofLaps
             for drivers in self.DriverList:
-                y_median_laptime_values=[laptimes_df["laptime_fuel_corrected"][laptimes_df['StintLaps']==laps].median() for laps in range(1,laps+1)]
+                y_median_laptime_values=[laptimes_df[sector][laptimes_df['StintLaps']==laps].median() for laps in range(1,laps+1)]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
                 x_median_values=list(range(1,laps+1))
-                print('hola he visto un string')
-                if y_values_mode =='laptimes':
+                if y_values_mode =='':
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
@@ -278,11 +306,10 @@ class Event():
             for drivers in driverlist:
                 LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
                 laps = LapTimesDf_SelectedDrivers['StintLaps'].max()
-                y_median_laptime_values=[LapTimesDf_SelectedDrivers["laptime_fuel_corrected"][LapTimesDf_SelectedDrivers['StintLaps']==laps].median() for laps in range(1,laps+1)]
+                y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][LapTimesDf_SelectedDrivers['StintLaps']==laps].median() for laps in range(1,laps+1)]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
                 x_median_values=list(range(1,laps+1))
-                print('hola he visto una lista')
-                if y_values_mode =='laptimes':
+                if y_values_mode =='':
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
@@ -299,7 +326,7 @@ class Event():
 #        y_weight.fill(1)
 #        y_weight[10:] = 0.1
         
-        coeff,cov =curve_fit(Eq_Model,laps,laptimes,g)#,sigma=y_weight,absolute_sigma=True)
+        coeff,cov =curve_fit(Eq_Model,laps,laptimes)#,sigma=y_weight,absolute_sigma=True)
     
         return coeff,cov
 
@@ -315,30 +342,29 @@ if __name__ == "__main__":
     Heidi_DDBB=DDBB()
     conn = Heidi_DDBB.db.connect()         
     Event=Event(str(input("Introduce la sesion que quieras!")))
-#    DriverList=Event.DriverList
-    DriverList=['DEL','MAT']
+    DriverList=['AIT','BOC']
+#    DriverList=Event.TopXDrivers(20)
     
     if Event.NrOfDifferentCompoundsUsed == 1:
         #All Drivers Prime
-        laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,"deg")
-        print(y_median_deg)
+        laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
         TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
         TyreModelCoeffs=TyreModelCoeffs.tolist()
-        y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
-        Event.PlotValuesByDriversByMedianByModel(laps[:-2],DriverList,y_median_deg[1:-1],y_model_deg,"deg","all")
+        y_model_deg=Eq_Model(np.array(laps[:-2],TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2]))
+        Event.PlotValuesByDriversByMedianByModel(laps[:-2],DriverList,y_median_deg[1:-1],y_model_deg,y_values_mode="deg",comp="all",track_sector='all')
     else:
         #Prime Model
-        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,"deg")
-        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-2],y_median_prime_deg[1:-1])
+        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,y_values_mode='deg',track_sector='s1')
+        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-3],y_median_prime_deg[1:-2])
         TyreModelCoeffs_prime=TyreModelCoeffs_prime.tolist()
         y_model_prime_deg=Eq_Model(np.array(prime_laps[:-2]),TyreModelCoeffs_prime[0],TyreModelCoeffs_prime[1],TyreModelCoeffs_prime[2])
-        Event.PlotValuesByDriversByMedianByModel(prime_laps[:-2],DriverList,y_median_prime_deg[1:-1],y_model_prime_deg,"deg",comp='prime')
+        Event.PlotValuesByDriversByMedianByModel(prime_laps[:-2],DriverList,y_median_prime_deg[1:-1],y_model_prime_deg,y_values_mode="deg",comp='prime',track_sector='s1')
         #Option Model
-        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,"deg")
+        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,y_values_mode="deg",track_sector='s1')
         TyreModelCoeffs_option,TyreModelCovar_option=Event.TyreModelCoeffs(option_laps[:-2],y_median_option_deg[1:-1])
         TyreModelCoeffs_option=TyreModelCoeffs_option.tolist()
         y_model_option_deg=Eq_Model(np.array(option_laps[:-2]),TyreModelCoeffs_option[0],TyreModelCoeffs_option[1],TyreModelCoeffs_option[2])
-        Event.PlotValuesByDriversByMedianByModel(option_laps[:-2],DriverList,y_median_option_deg[1:-1],y_model_option_deg,"deg",comp='option')
+        Event.PlotValuesByDriversByMedianByModel(option_laps[:-2],DriverList,y_median_option_deg[1:-1],y_model_option_deg,y_values_mode="deg",comp='option',track_sector='s1')
 
         
     print(DriverList)

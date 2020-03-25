@@ -1,4 +1,5 @@
-﻿F2_19R01BAH_R1,1,LAT,M,S,,,,,,,,,4
+﻿session,AI,driver,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,startpos
+F2_19R01BAH_R1,1,LAT,M,S,,,,,,,,,4
 F2_19R01BAH_R1,2,GHI,M,S,,,,,,,,,1
 F2_19R01BAH_R1,3,SET,M,S,,,,,,,,,8
 F2_19R01BAH_R1,4,HUB,M,S,,,,,,,,,11
