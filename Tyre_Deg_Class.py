@@ -4,6 +4,9 @@ Created on Fri Mar 13 11:10:17 2020
 
 @author: Alvaro
 """
+
+######################LIBRARIES IMPORTED#######################################
+
 from sqlalchemy import create_engine
 import numpy as np
 import pandas as pd
@@ -12,6 +15,16 @@ import datetime
 import matplotlib.pyplot as plt
 import math
 from scipy.optimize import curve_fit
+
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input,Output,State
+import plotly.graph_objs as go
+
+###############################################################################
+
+######################CLASSES AND FUNCTIONS####################################
 
 def convert2time(laptime):
     ''' TAB: Format_data
@@ -24,10 +37,10 @@ def convert2time(laptime):
         laptime=time.strptime(sec,'%M:%S')
         laptime=datetime.timedelta(hours=laptime.tm_hour, minutes=laptime.tm_min, seconds=laptime.tm_sec).total_seconds()+tenth
     return float(laptime)
+
 def Eq_Model(x,A,B,C):
     
     return A*x+(B*np.exp(C*(x))) 
-
 
 class DDBB():
     db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
@@ -48,7 +61,6 @@ class DDBB():
             return DDBB_df
         else:
             print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
-
        
 class Event():
 
@@ -63,7 +75,7 @@ class Event():
         self.NrOfDifferentCompoundsUsed = len(np.unique(Heidi_DDBB.GetData("all","TyreAlloc","session",self.Name)[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1
         self.PrimeCompound = "".join(c for c in str(Heidi_DDBB.GetData("Prime_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
         self.OptionCompound = "".join(c for c in str(Heidi_DDBB.GetData("Option_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
-        self.DriverList = Heidi_DDBB.GetData("driver","TyreAlloc","session",self.Name)['driver'].unique().tolist()
+        self.DriverList = Heidi_DDBB.GetData("driver","TyreAlloc","session",self.Name)['driver'].unique().tolist() #Now getting the list from tyrealloc table , because in some event, there are less than 20 drivers and it is failing if i choose driverlist from rawtiming or pdftiming with all the drivers
         self.NrofLaps = int(Heidi_DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'].max())
         self.DriverEndPosition = Heidi_DDBB.GetData(["driver","position"],"PdfTiming","session",self.Name)[Heidi_DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'] == self.NrofLaps]
         self.DriverStartPosition =Heidi_DDBB.GetData(["driver","startpos"],"TyreAlloc","session",self.Name)
@@ -183,8 +195,7 @@ class Event():
                    return self.DriverCompoundDf['s9'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
                else:
                    return self.DriverCompoundDf['s10'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
-               
-                   
+                                  
     def TopXDrivers(self,top_number):
         top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
         return top_driver_list
@@ -216,8 +227,6 @@ class Event():
             LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
             GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
             
-        
-        
         if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):            
             for drivers in self.DriverList:
                 if y_values_mode == 'deg':                    
@@ -264,9 +273,6 @@ class Event():
                 pass
             plt.show()     
                 
-        
-        
-        
     def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode='deg',track_sector='all'):
         """
        Inputs:
@@ -313,11 +319,7 @@ class Event():
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
-       
-       
-            
-                
-            
+                   
     def TyreModelCoeffs(self,laps,laptimes):
         
 #        global y_weight
@@ -334,16 +336,27 @@ class Strategy(Event):
     pass
 
 class Results(Event):
-    pass    
-        
-                
+    pass
+
+###############################################################################
+                      
+   
+######################DASH APP#################################################
+
+app=dash.Dash()
+app.layout = html.Div()
+
+
+###############################################################################
+
+#####################MAIN PROGRAM##############################################                
 if __name__ == "__main__":
     
     Heidi_DDBB=DDBB()
     conn = Heidi_DDBB.db.connect()         
     Event=Event(str(input("Introduce la sesion que quieras!")))
-    DriverList=['AIT','BOC']
-#    DriverList=Event.TopXDrivers(20)
+#    DriverList=Event.DriverList
+    DriverList=Event.TopXDrivers(10)
     
     if Event.NrOfDifferentCompoundsUsed == 1:
         #All Drivers Prime
@@ -371,7 +384,25 @@ if __name__ == "__main__":
     print(Event.DriverList_Prime)
     print(Event.DriverList_Option)
     conn.close()
-    Heidi_DDBB.db.dispose()    
+    Heidi_DDBB.db.dispose()
+    app.run_server()  
+
+###############################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+####################EXTRA INFO#################################################
+
 ###crear un grupo
 #groupbyprime=Event.LapTimesDf_Prime.groupby(['driver','Pits'])
 ####groups pinta los filtros del grupo
@@ -386,3 +417,5 @@ if __name__ == "__main__":
 
 ###Contar algo agrupando
 #Event.LapTimesDf['StintLaps']=Event.LapTimesDf.groupby(['driver','Pits']).cumcount()+1
+    
+###############################################################################
