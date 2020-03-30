@@ -387,6 +387,7 @@ app.layout = html.Div([
                       html.Button(id='button'),         
                       dcc.Graph(id='feature-graphic')
                      
+                        
                      ]
     )
 @app.callback(Output('feature-graphic','figure'),
