@@ -64,25 +64,26 @@ class DDBB():
        
 class Event():
 
-    def __init__(self,Naming_convention):
+    def __init__(self,Naming_convention,DDBB):
+        self.DDBB=DDBB
         self.Name = str(Naming_convention)
         self.Chsip = self.Name.split("_")[0]
         self.Year = self.Name.split("_")[1][0:2]
         self.Track = self.Name.split("_")[1][5:8]
         self.Session = self.Name.split("_")[2]
-        self.PdfFlag = int(Heidi_DDBB.GetData("pdf_flag","Calendar","session_id",self.Name).values)
-        self.TrackFuelPenalty = float(Heidi_DDBB.GetData("fuel_penalty","Calendar","session_id",self.Name).values)
-        self.NrOfDifferentCompoundsUsed = len(np.unique(Heidi_DDBB.GetData("all","TyreAlloc","session",self.Name)[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1
-        self.PrimeCompound = "".join(c for c in str(Heidi_DDBB.GetData("Prime_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
-        self.OptionCompound = "".join(c for c in str(Heidi_DDBB.GetData("Option_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
-        self.DriverList = Heidi_DDBB.GetData("driver","TyreAlloc","session",self.Name)['driver'].unique().tolist() #Now getting the list from tyrealloc table , because in some event, there are less than 20 drivers and it is failing if i choose driverlist from rawtiming or pdftiming with all the drivers
-        self.NrofLaps = int(Heidi_DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'].max())
-        self.DriverEndPosition = Heidi_DDBB.GetData(["driver","position"],"PdfTiming","session",self.Name)[Heidi_DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'] == self.NrofLaps]
-        self.DriverStartPosition =Heidi_DDBB.GetData(["driver","startpos"],"TyreAlloc","session",self.Name)
-        self.LapTimesDf = Heidi_DDBB.GetData(["driver","lap","s1","s2","s3","laptime","InPit","Pits"],"PdfTiming","session",self.Name)
+        self.PdfFlag = int(self.DDBB.GetData("pdf_flag","Calendar","session_id",self.Name).values)
+        self.TrackFuelPenalty = float(self.DDBB.GetData("fuel_penalty","Calendar","session_id",self.Name).values)
+        self.NrOfDifferentCompoundsUsed = len(np.unique(self.DDBB.GetData("all","TyreAlloc","session",self.Name)[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1
+        self.PrimeCompound = "".join(c for c in str(self.DDBB.GetData("Prime_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
+        self.OptionCompound = "".join(c for c in str(self.DDBB.GetData("Option_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
+        self.DriverList = self.DDBB.GetData("driver","TyreAlloc","session",self.Name)['driver'].unique().tolist() #Now getting the list from tyrealloc table , because in some event, there are less than 20 drivers and it is failing if i choose driverlist from rawtiming or pdftiming with all the drivers
+        self.NrofLaps = int(self.DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'].max())
+        self.DriverEndPosition = self.DDBB.GetData(["driver","position"],"PdfTiming","session",self.Name)[self.DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'] == self.NrofLaps]
+        self.DriverStartPosition =self.DDBB.GetData(["driver","startpos"],"TyreAlloc","session",self.Name)
+        self.LapTimesDf = self.DDBB.GetData(["driver","lap","s1","s2","s3","laptime","InPit","Pits"],"PdfTiming","session",self.Name)
         self.LapTimesDf["laptime"]=self.LapTimesDf.laptime.replace('','0:00.000').apply(lambda x: convert2time(x))
         self.LapTimesDf["laptime_fuel_corrected"]=self.LapTimesDf.apply(lambda row: row.laptime + (row.lap-1)*self.TrackFuelPenalty,axis=1)
-        self.DriverCompoundDf= Heidi_DDBB.GetData("all","TyreAlloc","session",self.Name)
+        self.DriverCompoundDf= self.DDBB.GetData("all","TyreAlloc","session",self.Name)
         if self.NrOfDifferentCompoundsUsed > 1:
             self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply (lambda row: self.label_compound(row), axis=1)
         else:
@@ -202,7 +203,7 @@ class Event():
     
     def PlotValuesByDriversByMedianByModel(self,laps,driverlist,y_median_values,y_model_values,y_values_mode='deg',comp='',track_sector='all'):
         if str.lower(track_sector) == 'all':
-            sector="laptimes_fuel_corrected"
+            sector="laptime_fuel_corrected"
         elif str.lower(track_sector) == 's1':
             sector = "s1"
         elif str.lower(track_sector) == 's2':
@@ -274,6 +275,7 @@ class Event():
             plt.show()     
                 
     def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode='deg',track_sector='all'):
+        
         """
        Inputs:
            driverlist -> Here we can enter the filter for the drivers. 
@@ -287,7 +289,7 @@ class Event():
         
         "User entering driverlist='all' or ''"
         if str.lower(track_sector) == 'all':
-            sector="laptimes_fuel_corrected"
+            sector="laptime_fuel_corrected"
         elif str.lower(track_sector) == 's1':
             sector = "s1"
         elif str.lower(track_sector) == 's2':
@@ -338,53 +340,162 @@ class Strategy(Event):
 class Results(Event):
     pass
 
+######################DASH APP#################################################
+
+
+
+###############################################################################  
+    
 ###############################################################################
                       
    
-######################DASH APP#################################################
 
-app=dash.Dash()
-app.layout = html.Div()
-
-
-###############################################################################
 
 #####################MAIN PROGRAM##############################################                
-if __name__ == "__main__":
+#if __name__ == "__main__":
+app=dash.Dash()
+#Heidi_DDBB=DDBB()
+#conn = self.DDBB.db.connect()         
+#Event=Event(str(input("Introduce la sesion que quieras!")))
+##    DriverList=Event.DriverList
+#DriverList=Event.TopXDrivers(10)
     
-    Heidi_DDBB=DDBB()
-    conn = Heidi_DDBB.db.connect()         
-    Event=Event(str(input("Introduce la sesion que quieras!")))
-#    DriverList=Event.DriverList
-    DriverList=Event.TopXDrivers(10)
-    
-    if Event.NrOfDifferentCompoundsUsed == 1:
-        #All Drivers Prime
-        laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
-        TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
-        TyreModelCoeffs=TyreModelCoeffs.tolist()
-        y_model_deg=Eq_Model(np.array(laps[:-2],TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2]))
-        Event.PlotValuesByDriversByMedianByModel(laps[:-2],DriverList,y_median_deg[1:-1],y_model_deg,y_values_mode="deg",comp="all",track_sector='all')
-    else:
-        #Prime Model
-        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,y_values_mode='deg',track_sector='s1')
-        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-3],y_median_prime_deg[1:-2])
-        TyreModelCoeffs_prime=TyreModelCoeffs_prime.tolist()
-        y_model_prime_deg=Eq_Model(np.array(prime_laps[:-2]),TyreModelCoeffs_prime[0],TyreModelCoeffs_prime[1],TyreModelCoeffs_prime[2])
-        Event.PlotValuesByDriversByMedianByModel(prime_laps[:-2],DriverList,y_median_prime_deg[1:-1],y_model_prime_deg,y_values_mode="deg",comp='prime',track_sector='s1')
-        #Option Model
-        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,y_values_mode="deg",track_sector='s1')
-        TyreModelCoeffs_option,TyreModelCovar_option=Event.TyreModelCoeffs(option_laps[:-2],y_median_option_deg[1:-1])
-        TyreModelCoeffs_option=TyreModelCoeffs_option.tolist()
-        y_model_option_deg=Eq_Model(np.array(option_laps[:-2]),TyreModelCoeffs_option[0],TyreModelCoeffs_option[1],TyreModelCoeffs_option[2])
-        Event.PlotValuesByDriversByMedianByModel(option_laps[:-2],DriverList,y_median_option_deg[1:-1],y_model_option_deg,y_values_mode="deg",comp='option',track_sector='s1')
+#    if Event.NrOfDifferentCompoundsUsed == 1:
+    #All Drivers Prime
+#    laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
+#    TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
+#    TyreModelCoeffs=TyreModelCoeffs.tolist()
+#    y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
+#    Event.PlotValuesByDriversByMedianByModel(laps[:-2],DriverList,y_median_deg[1:-1],y_model_deg,y_values_mode="deg",comp="all",track_sector='all')
+#    else:
+#        #Prime Model
+#        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,y_values_mode='deg',track_sector='s1')
+#        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-3],y_median_prime_deg[1:-2])
+#        TyreModelCoeffs_prime=TyreModelCoeffs_prime.tolist()
+#        y_model_prime_deg=Eq_Model(np.array(prime_laps[:-2]),TyreModelCoeffs_prime[0],TyreModelCoeffs_prime[1],TyreModelCoeffs_prime[2])
+#        Event.PlotValuesByDriversByMedianByModel(prime_laps[:-2],DriverList,y_median_prime_deg[1:-1],y_model_prime_deg,y_values_mode="deg",comp='prime',track_sector='s1')
+#        #Option Model
+#        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,y_values_mode="deg",track_sector='s1')
+#        TyreModelCoeffs_option,TyreModelCovar_option=Event.TyreModelCoeffs(option_laps[:-2],y_median_option_deg[1:-1])
+#        TyreModelCoeffs_option=TyreModelCoeffs_option.tolist()
+#        y_model_option_deg=Eq_Model(np.array(option_laps[:-2]),TyreModelCoeffs_option[0],TyreModelCoeffs_option[1],TyreModelCoeffs_option[2])
+#        Event.PlotValuesByDriversByMedianByModel(option_laps[:-2],DriverList,y_median_option_deg[1:-1],y_model_option_deg,y_values_mode="deg",comp='option',track_sector='s1')
 
+    
+app.layout = html.Div([
+                    
+                      html.Button(id='button'),         
+                      dcc.Graph(id='feature-graphic')
+                     
+                     ]
+    )
+@app.callback(Output('feature-graphic','figure'),
+              [Input('button','n_clicks')])
+def update_graph(n_clicks):
+    global DDBB,Event,laps,y_median_deg,trace_all
+    Heidi_DDBB=DDBB()
+    conn = Heidi_DDBB.db.connect()
+    Event=Event("F2_19R08BUD_R2",Heidi_DDBB)
+    DriverList=Event.TopXDrivers(10)
+    laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
+    TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
+    TyreModelCoeffs=TyreModelCoeffs.tolist()
+    y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
+    track_sector='all'
+    if str.lower(track_sector) == 'all':
+            sector="laptime_fuel_corrected"
+    elif str.lower(track_sector) == 's1':
+        sector = "s1"
+    elif str.lower(track_sector) == 's2':
+        sector = "s2"
+    elif str.lower(track_sector) == 's3':
+        sector = "s3"
+    comp=''
+    driverlist=DriverList
+    if str.lower(comp) =='prime':
+       
+        laptimes_df=Event.LapTimesDf_Prime
+        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
+        GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
         
-    print(DriverList)
-    print(Event.DriverList_Prime)
-    print(Event.DriverList_Option)
+    elif str.lower(comp) == 'option':
+       
+        laptimes_df=Event.LapTimesDf_Option
+        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
+        GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
+        
+    else:
+       
+        laptimes_df=Event.LapTimesDf
+        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
+        GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
+    
+    trace_drivers=[]
+    y_values_mode='deg'
+    for drivers in driverlist:
+            
+            if y_values_mode == 'deg':
+                y_values=GroupByDriver.get_group(drivers)[sector]-GroupByDriver.get_group(drivers)[sector].min()
+                x_values=GroupByDriver.get_group(drivers)['StintLaps']
+                trace_drivers.append(go.Scatter(
+                                                x=x_values[2:],
+                                                y=y_values[2:],
+                                                mode='lines+markers',
+                                                name=drivers
+            
+            
+        ))
+            else:
+                y_values=GroupByDriver.get_group(drivers)[sector]
+                x_values=GroupByDriver.get_group(drivers)['StintLaps']
+                trace_drivers.append(go.Scatter(
+                                                x=x_values[2:],
+                                                y=y_values[2:],
+                                                mode='lines+markers',
+                                                name=drivers
+            
+            
+        ))
+                
+            
+                
+                
+                
+    trace_median=go.Scatter(
+            x=laps[2:],
+            y=y_median_deg[2:],
+            mode='lines+markers',
+            name='Median of all drivers'
+            
+            
+        )
+    trace_model=go.Scatter(
+            x=laps[2:],
+            y=y_model_deg[2:],
+            mode='lines+markers',
+            name='Math Model Fit'            
+            
+        )
+    
+    trace_drivers.append(trace_median)
+    trace_drivers.append(trace_model)
+    layout=go.Layout(
+            xaxis={'title': 'Laps'},
+            yaxis={'title': 'Absolute Deg'},
+            margin={'l': 40, 'b': 40, 't': 10, 'r': 0},
+            hovermode='closest'
+        )
     conn.close()
     Heidi_DDBB.db.dispose()
+    return dict(data=trace_drivers,layout=layout)
+
+#print(DriverList)
+#print(Event.DriverList_Prime)
+#print(Event.DriverList_Option)
+#conn.close()
+#Heidi_DDBB.db.dispose()
+
+if __name__ == "__main__":
     app.run_server()  
 
 ###############################################################################
