@@ -382,21 +382,154 @@ app=dash.Dash()
 #        Event.PlotValuesByDriversByMedianByModel(option_laps[:-2],DriverList,y_median_option_deg[1:-1],y_model_option_deg,y_values_mode="deg",comp='option',track_sector='s1')
 
     
-app.layout = html.Div([
-                    
-                      html.Button(id='button'),         
-                      dcc.Graph(id='feature-graphic')
-                     
+app.layout = html.Div(children=[
+                      html.H2(id='tittle',children='Campos Engineering',style={'text-align':'center','fontSize':20}),
+                                       # FIRST ROW DIVS with Selection Plot Dropdown, Event Input Box and Confirm Button
+                      html.Div([                  
+                              html.Div([
+                                      dcc.Dropdown(id = 'plot options dropdown',
+                                                   options=[{'label': i, 'value': i} for i in ['Driver Laptimes','Median','Math Model']],
+                                                   placeholder="Select Plot Calculations",
+                                                   multi=True,
+                                                   value=['Drivers','Median','Deg']),
+                                        ],
+                                                    style = dict(
+                                                        width = '68%',
+                                                        display = 'table-cell',
+                                                        verticalAlign = "middle",
+                                                        border="2px black solid"
+                                                        ),
+                                        ),
+                            html.Div([
+                                dcc.Input(id = 'event input', type = 'text', value = 'F2_19R08BUD_R2'),
+                                html.Button(
+                                    children = 'Confirm Event',
+                                    id = 'event confirm button',
+                                    type = 'submit',
+                                    n_clicks = 0
+                                    ),
+                                ],
+                                style = dict(
+                                    width = '30%',
+                                    display = 'table-cell',
+                                    verticalAlign = "middle",
+                                                        border="2px black solid"
+                                    )
+                                ),
+                                ],
+                                style = dict(
+                                    width = '100%',
+                                    display = 'table',
+                                    text_align = 'center',
+                                                        border="2px black solid"
+                                    )),
+                            
+                            # SECOND ROW DIVS with Selection Plot Dropdown, Event Input Box and Confirm Button
+                            
+                            html.Div([           
+                            html.Div([                  
+                                      dcc.Dropdown(id = 'compound options dropdown',
+                                                   options=[{'label': i, 'value': i} for i in ['Prime','Option','Wet']],
+                                                   placeholder="Select Compound",
+                                                   value='Prime'),
+                                        ],
+                                                    style = dict(
+                                                        width = '68%',
+                                                        display = 'table-cell',
+                                                        verticalAlign = "middle",
+                                                        border="2px black solid"
+                                                        ),
+                                        ),
                         
-                     ]
-    )
+                            html.Div([
+                                dcc.Input(id = 'Filename Input 2', type = 'text', value = 'Filename'),
+                                html.Button(
+                                    children = 'Confirm Top X Drivers',
+                                    id = 'confirm button 2',
+                                    type = 'submit',
+                                    n_clicks = 0
+                                    ),
+                                ],
+                                style = dict(
+                                    width = '30%',
+                                    display = 'table-cell',
+                                    verticalAlign = "middle",
+                                    border="2px black solid",
+                                    justify='center'
+                                    
+                                    )),
+                                ],
+                                style = dict(
+                                    width = '100%',
+                                    display = 'table',
+                                    align = 'center',
+                                    border="2px black solid"
+                                    )),
+                            
+                                      # SPACER
+                            
+                            html.P(), 
+                            
+                                      # LAP FILTER DIV ROW  
+                                       
+                            html.Div([
+                                    'Select which laps to display on the plot. Median will be calculated only for these laps selected',
+                                    dcc.Dropdown(
+                                            id='laps filter',
+                                            options=[{'label': str(i), 'value': str(i)} for i in range(1, 26)],
+                                            multi=True,
+                                            value=[str(i) for i in range(1, 26)]
+                                            )]),
+                            
+                                      # TRICK TO MAKE CALLBACKS WITHOUT AN OUTPUT
+                            html.Div(id='hidden div', style=dict(display = 'none')),
+                            
+                                      # SPACER
+                            
+                            html.P(), 
+                            
+                                                    
+                                    # GRAPH DIV ROW  
+                                                    
+                            html.Div([
+                                dcc.Graph(id='feature-graphic')],
+                                style={'display': 'inline-block', 'width': '100%'}),
+                                    
+                            html.P(),
+                                     #EQ MODEL + COEFFS PBTAINED FROM MODEL FIT (50% Left)
+                            html.Div([
+                            html.Div([],style=dict(border="2px black solid",width='45%',display='table-cell')),
+                                     
+                                    #Other Option (50% Right)
+                                             
+                            html.Div([],style=dict(border="2px red solid",width='45%',display='table-cell'))
+                            
+                            ],style=dict(display='table',border="2px blue solid",width='100%'))
+                            ])
+                                                    
+                                    
+@app.callback(Output('hidden div','children'),
+              [Input('event confirm button','n_clicks')],
+              [State('event input','value')])
+def event_starter(button_click,event_naming_convention):
+    
+    if button_click>0:
+        global Event,Heidi_DDBB
+        Heidi_DDBB=DDBB()
+        conn = Heidi_DDBB.db.connect()
+        Event=Event(event_naming_convention,Heidi_DDBB)
+        conn.close()
+        Heidi_DDBB.db.dispose()
+                                  
+
+
+
+    
 @app.callback(Output('feature-graphic','figure'),
-              [Input('button','n_clicks')])
+               [Input('event confirm button','n_clicks')])
+
 def update_graph(n_clicks):
-    global DDBB,Event,laps,y_median_deg,trace_all
-    Heidi_DDBB=DDBB()
-    conn = Heidi_DDBB.db.connect()
-    Event=Event("F2_19R08BUD_R2",Heidi_DDBB)
+    global Event,Heidi_DDBB
     DriverList=Event.TopXDrivers(10)
     laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
     TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
@@ -433,6 +566,7 @@ def update_graph(n_clicks):
     
     trace_drivers=[]
     y_values_mode='deg'
+    
     for drivers in driverlist:
             
             if y_values_mode == 'deg':
