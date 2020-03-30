@@ -23,7 +23,7 @@ from dash.dependencies import Input,Output,State
 import plotly.graph_objs as go
 
 ###############################################################################
-
+global Event, Heidi_DDBB
 ######################CLASSES AND FUNCTIONS####################################
 
 def convert2time(laptime):
@@ -41,6 +41,9 @@ def convert2time(laptime):
 def Eq_Model(x,A,B,C):
     
     return A*x+(B*np.exp(C*(x))) 
+
+#def Event_Class_Returner(Event):
+#    return Event
 
 class DDBB():
     db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
@@ -274,7 +277,7 @@ class Event():
                 pass
             plt.show()     
                 
-    def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode='deg',track_sector='all'):
+    def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode,track_sector):
         
         """
        Inputs:
@@ -288,7 +291,7 @@ class Event():
         """
         
         "User entering driverlist='all' or ''"
-        if str.lower(track_sector) == 'all':
+        if str.lower(track_sector) == 'full lap':
             sector="laptime_fuel_corrected"
         elif str.lower(track_sector) == 's1':
             sector = "s1"
@@ -303,7 +306,7 @@ class Event():
                 y_median_laptime_values=[laptimes_df[sector][laptimes_df['StintLaps']==laps].median() for laps in range(1,laps+1)]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
                 x_median_values=list(range(1,laps+1))
-                if y_values_mode =='':
+                if y_values_mode =='lap':
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
@@ -317,7 +320,7 @@ class Event():
                 y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][LapTimesDf_SelectedDrivers['StintLaps']==laps].median() for laps in range(1,laps+1)]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
                 x_median_values=list(range(1,laps+1))
-                if y_values_mode =='':
+                if y_values_mode =='lap':
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
@@ -341,45 +344,8 @@ class Results(Event):
     pass
 
 ######################DASH APP#################################################
-
-
-
-###############################################################################  
-    
-###############################################################################
-                      
-   
-
-
-#####################MAIN PROGRAM##############################################                
-#if __name__ == "__main__":
 app=dash.Dash()
-#Heidi_DDBB=DDBB()
-#conn = self.DDBB.db.connect()         
-#Event=Event(str(input("Introduce la sesion que quieras!")))
-##    DriverList=Event.DriverList
-#DriverList=Event.TopXDrivers(10)
     
-#    if Event.NrOfDifferentCompoundsUsed == 1:
-    #All Drivers Prime
-#    laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
-#    TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
-#    TyreModelCoeffs=TyreModelCoeffs.tolist()
-#    y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
-#    Event.PlotValuesByDriversByMedianByModel(laps[:-2],DriverList,y_median_deg[1:-1],y_model_deg,y_values_mode="deg",comp="all",track_sector='all')
-#    else:
-#        #Prime Model
-#        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,y_values_mode='deg',track_sector='s1')
-#        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-3],y_median_prime_deg[1:-2])
-#        TyreModelCoeffs_prime=TyreModelCoeffs_prime.tolist()
-#        y_model_prime_deg=Eq_Model(np.array(prime_laps[:-2]),TyreModelCoeffs_prime[0],TyreModelCoeffs_prime[1],TyreModelCoeffs_prime[2])
-#        Event.PlotValuesByDriversByMedianByModel(prime_laps[:-2],DriverList,y_median_prime_deg[1:-1],y_model_prime_deg,y_values_mode="deg",comp='prime',track_sector='s1')
-#        #Option Model
-#        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,y_values_mode="deg",track_sector='s1')
-#        TyreModelCoeffs_option,TyreModelCovar_option=Event.TyreModelCoeffs(option_laps[:-2],y_median_option_deg[1:-1])
-#        TyreModelCoeffs_option=TyreModelCoeffs_option.tolist()
-#        y_model_option_deg=Eq_Model(np.array(option_laps[:-2]),TyreModelCoeffs_option[0],TyreModelCoeffs_option[1],TyreModelCoeffs_option[2])
-#        Event.PlotValuesByDriversByMedianByModel(option_laps[:-2],DriverList,y_median_option_deg[1:-1],y_model_option_deg,y_values_mode="deg",comp='option',track_sector='s1')
 
     
 app.layout = html.Div(children=[
@@ -388,10 +354,11 @@ app.layout = html.Div(children=[
                       html.Div([                  
                               html.Div([
                                       dcc.Dropdown(id = 'plot options dropdown',
-                                                   options=[{'label': i, 'value': i} for i in ['Driver Laptimes','Median','Math Model']],
+                                                   options=[{'label': i, 'value': i} for i in ['laptime','median','model']],
                                                    placeholder="Select Plot Calculations",
                                                    multi=True,
-                                                   value=['Drivers','Median','Deg']),
+                                                   value=['laptime','median','model']
+                                                   ),
                                         ],
                                                     style = dict(
                                                         width = '68%',
@@ -401,7 +368,7 @@ app.layout = html.Div(children=[
                                                         ),
                                         ),
                             html.Div([
-                                dcc.Input(id = 'event input', type = 'text', value = 'F2_19R08BUD_R2'),
+                                dcc.Input(id = 'event input', type = 'text', value = ''),
                                 html.Button(
                                     children = 'Confirm Event',
                                     id = 'event confirm button',
@@ -423,6 +390,10 @@ app.layout = html.Div(children=[
                                     text_align = 'center',
                                                         border="2px black solid"
                                     )),
+                                                    
+                                      # SPACER
+                            
+                            html.P(), 
                             
                             # SECOND ROW DIVS with Selection Plot Dropdown, Event Input Box and Confirm Button
                             
@@ -442,10 +413,10 @@ app.layout = html.Div(children=[
                                         ),
                         
                             html.Div([
-                                dcc.Input(id = 'Filename Input 2', type = 'text', value = 'Filename'),
+                                dcc.Input(id = 'top drivers input', type = 'text', value = 'Enter Top X Drivers you want to analyse'),
                                 html.Button(
-                                    children = 'Confirm Top X Drivers',
-                                    id = 'confirm button 2',
+                                    children = 'Draw Plot and Calculate Model Coeffs!',
+                                    id = 'draw confirm button',
                                     type = 'submit',
                                     n_clicks = 0
                                     ),
@@ -468,7 +439,51 @@ app.layout = html.Div(children=[
                             
                                       # SPACER
                             
+                            html.P(),
+                            
                             html.P(), 
+                            
+                            # THIRD ROW DIVS with Selection of Mode (Deg or Laptimes) and Selection of S1/S2/S3/All
+                            
+                            html.Div([           
+                            html.Div([                  
+                                      dcc.Dropdown(id = 'sector options dropdown',
+                                                   options=[{'label': i, 'value': i} for i in ['S1','S2','S3','Full Lap']],
+                                                   placeholder="Select Sector to analyse or full lap",
+                                                   value='Full Lap')
+                                        ],
+                                                    style = dict(
+                                                        width = '30%',
+                                                        display = 'table-cell',
+                                                        verticalAlign = "middle",
+                                                        border="2px black solid"
+                                                        ),
+                                        ),
+                        
+                            html.Div([
+                                dcc.Dropdown(id = 'mode options dropdown',
+                                                   options=[{'label': i, 'value': i[0:3]} for i in ['Degradation','Laptimes']],
+                                                   placeholder="Select Graph Mode: Abs Deg or Laptimes",
+                                                   value = 'Deg')
+                                        ],
+                                                    style = dict(
+                                                        width = '30%',
+                                                        display = 'table-cell',
+                                                        verticalAlign = "middle",
+                                                        border="2px black solid"
+                                                        ),
+                                        ),
+                                ],
+                                style = dict(
+                                    width = '100%',
+                                    display = 'table',
+                                    align = 'center',
+                                    border="2px black solid"
+                                    )),
+                            
+                                      # SPACER
+                            
+                            html.P(),
                             
                                       # LAP FILTER DIV ROW  
                                        
@@ -476,9 +491,7 @@ app.layout = html.Div(children=[
                                     'Select which laps to display on the plot. Median will be calculated only for these laps selected',
                                     dcc.Dropdown(
                                             id='laps filter',
-                                            options=[{'label': str(i), 'value': str(i)} for i in range(1, 26)],
-                                            multi=True,
-                                            value=[str(i) for i in range(1, 26)]
+                                            multi=True                                            
                                             )]),
                             
                                       # TRICK TO MAKE CALLBACKS WITHOUT AN OUTPUT
@@ -511,56 +524,98 @@ app.layout = html.Div(children=[
 @app.callback(Output('hidden div','children'),
               [Input('event confirm button','n_clicks')],
               [State('event input','value')])
+
 def event_starter(button_click,event_naming_convention):
-    
+    global User_Event,Heidi_DDBB,conn
     if button_click>0:
-        global Event,Heidi_DDBB
         Heidi_DDBB=DDBB()
         conn = Heidi_DDBB.db.connect()
-        Event=Event(event_naming_convention,Heidi_DDBB)
+        User_Event=Event(event_naming_convention,Heidi_DDBB)
         conn.close()
         Heidi_DDBB.db.dispose()
-                                  
 
+@app.callback([Output('laps filter','options'),
+               Output('laps filter','value')],
+              [Input('event confirm button','n_clicks'),
+               Input('compound options dropdown','value')],
+              [State('event input','value'),
+               ])
+def set_nr_of_lapfilter(button_click,compound,event_naming_convention):
+    global comp
+    comp=compound
+    if str.lower(compound) =='prime':
+        maxlaps=User_Event.MaxNrofLaps_Prime
+        options=[dict(label=str(i),value=i) for i in range(1, maxlaps+1)]
+        value=[d['value'] for d in options]
+    elif str.lower(compound) =='option':
+        maxlaps=User_Event.MaxNrofLaps_Option
+        options=[dict(label=str(i),value=i) for i in range(1, maxlaps+1)]
+        value=[d['value'] for d in options]
 
-
-    
+    return options,value        
+     
 @app.callback(Output('feature-graphic','figure'),
-               [Input('event confirm button','n_clicks')])
+               [Input('plot options dropdown','value'),
+                Input('compound options dropdown','value'),
+                Input('top drivers input','value'),
+                Input('sector options dropdown','value'),
+                Input('mode options dropdown','value'),
+                Input('draw confirm button','n_clicks')])
 
-def update_graph(n_clicks):
-    global Event,Heidi_DDBB
-    DriverList=Event.TopXDrivers(10)
-    laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
-    TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
+def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks):
+    global mode,sector
+    mode=y_values_mode
+    sector=track_sector
+    DriverList=User_Event.TopXDrivers(int(top_drivers))
+    
+#    if Event.NrOfDifferentCompoundsUsed == 1:
+#        #All Drivers Prime, F3 Model
+#        laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
+#        TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
+#        TyreModelCoeffs=TyreModelCoeffs.tolist()
+#        y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
+#    else:
+#        #Prime Model
+#        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,y_values_mode='deg',track_sector='s1')
+#        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-3],y_median_prime_deg[1:-2])
+#        TyreModelCoeffs_prime=TyreModelCoeffs_prime.tolist()
+#        y_model_prime_deg=Eq_Model(np.array(prime_laps[:-2]),TyreModelCoeffs_prime[0],TyreModelCoeffs_prime[1],TyreModelCoeffs_prime[2])
+#        #Option Model
+#        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,y_values_mode="deg",track_sector='s1')
+#        TyreModelCoeffs_option,TyreModelCovar_option=Event.TyreModelCoeffs(option_laps[:-2],y_median_option_deg[1:-1])
+#        TyreModelCoeffs_option=TyreModelCoeffs_option.tolist()
+#        y_model_option_deg=Eq_Model(np.array(option_laps[:-2]),TyreModelCoeffs_option[0],TyreModelCoeffs_option[1],TyreModelCoeffs_option[2])
+
+    laps,y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(User_Event.LapTimesDf,DriverList,mode,sector)
+    
+    TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
     TyreModelCoeffs=TyreModelCoeffs.tolist()
     y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
-    track_sector='all'
-    if str.lower(track_sector) == 'all':
-            sector="laptime_fuel_corrected"
+       
+    if str.lower(track_sector) == 'full lap':
+        sector="laptime_fuel_corrected"
     elif str.lower(track_sector) == 's1':
         sector = "s1"
     elif str.lower(track_sector) == 's2':
         sector = "s2"
     elif str.lower(track_sector) == 's3':
         sector = "s3"
-    comp=''
     driverlist=DriverList
-    if str.lower(comp) =='prime':
+    if str.lower(compound) =='prime':
        
-        laptimes_df=Event.LapTimesDf_Prime
+        laptimes_df=User_Event.LapTimesDf_Prime
         LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
         
-    elif str.lower(comp) == 'option':
+    elif str.lower(compound) == 'option':
        
-        laptimes_df=Event.LapTimesDf_Option
+        laptimes_df=User_Event.LapTimesDf_Option
         LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
         
     else:
        
-        laptimes_df=Event.LapTimesDf
+        laptimes_df=User_Event.LapTimesDf
         LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
     
@@ -612,23 +667,46 @@ def update_graph(n_clicks):
             
         )
     
-    trace_drivers.append(trace_median)
-    trace_drivers.append(trace_model)
     layout=go.Layout(
             xaxis={'title': 'Laps'},
             yaxis={'title': 'Absolute Deg'},
             margin={'l': 40, 'b': 40, 't': 10, 'r': 0},
             hovermode='closest'
         )
+    data=[]
+    if ('laptime' in plot_options) and ('median' in plot_options) and ('model' in plot_options):    
+        trace_drivers.append(trace_median)
+        trace_drivers.append(trace_model)
+        data=trace_drivers
+    elif ('laptime' in plot_options) and ('median' in plot_options):
+        trace_drivers.append(trace_median)
+        data=trace_drivers
+    elif ('median' in plot_options) and ('model' in plot_options):
+        trace_all=[]
+        trace_all.append(trace_median)
+        trace_all.append(trace_model)
+        data = trace_all
+    elif ('laptime' in plot_options) and ('model' in plot_options):
+        trace_drivers.append(trace_model)
+        data=trace_drivers
+    elif ('laptime' in plot_options):
+        data = trace_drivers
+    elif ('median' in plot_options):
+        data = [trace_median]
+    elif ('model' in plot_options):
+        data = [trace_model]
     conn.close()
     Heidi_DDBB.db.dispose()
-    return dict(data=trace_drivers,layout=layout)
+    
+    return dict(data=data,layout=layout)
 
 #print(DriverList)
 #print(Event.DriverList_Prime)
 #print(Event.DriverList_Option)
 #conn.close()
 #Heidi_DDBB.db.dispose()
+
+#####################MAIN PROGRAM##############################################                
 
 if __name__ == "__main__":
     app.run_server()  
