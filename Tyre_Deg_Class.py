@@ -280,9 +280,9 @@ class Results(Event):
     pass
 
 ######################DASH APP#################################################
-app=dash.Dash()
+app=dash.Dash(__name__)
     
-
+server=app.server
     
 app.layout = html.Div(children=[
                       html.H2(id='tittle',children='Campos Engineering',style={'text-align':'center','fontSize':20}),
