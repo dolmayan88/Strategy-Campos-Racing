@@ -551,19 +551,19 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
     
     for drivers in driverlist:
             for stint in laptimes_df['Stint'][laptimes_df['driver']==drivers].unique().tolist():
-                if y_values_mode == 'deg':
-                    y_values=GroupByDriver.get_group((drivers,stint))[sector]-GroupByDriver.get_group((drivers,stint))[sector].min()
+                if str.lower(y_values_mode) == 'deg':
+                    y_values=GroupByDriver.get_group((drivers,stint))[sector][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]-GroupByDriver.get_group((drivers,stint))[sector][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)].min()
 #                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group(drivers)['StintLaps'].isin(laps)]
                     trace_drivers.append(go.Scatter(
                                                     x=laps,
                                                     y=y_values,
                                                     mode='lines+markers',
-                                                    name=drivers + "_" + (stint)
+                                                    name=drivers + "_" + str(stint)
                 
                 
             ))
                 else:
-                    y_values=GroupByDriver.get_group((drivers,stint))[sector]
+                    y_values=GroupByDriver.get_group((drivers,stint))[sector][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]
 #                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]
                     trace_drivers.append(go.Scatter(
                                                     x=laps,
@@ -587,7 +587,7 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
             
         )
     trace_model=go.Scatter(
-            x=laps[2:],
+            x=laps,
             y=y_model_deg,
             mode='lines+markers',
             name='Math Model Fit'            
