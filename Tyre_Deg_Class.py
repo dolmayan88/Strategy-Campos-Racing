@@ -203,81 +203,8 @@ class Event():
     def TopXDrivers(self,top_number):
         top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
         return top_driver_list
-    
-    def PlotValuesByDriversByMedianByModel(self,laps,driverlist,y_median_values,y_model_values,y_values_mode='deg',comp='',track_sector='all'):
-        if str.lower(track_sector) == 'all':
-            sector="laptime_fuel_corrected"
-        elif str.lower(track_sector) == 's1':
-            sector = "s1"
-        elif str.lower(track_sector) == 's2':
-            sector = "s2"
-        elif str.lower(track_sector) == 's3':
-            sector = "s3"
-        if str.lower(comp) =='prime':
-           
-            laptimes_df=self.LapTimesDf_Prime
-            LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
-            GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
-            
-        elif str.lower(comp) == 'option':
-           
-            laptimes_df=self.LapTimesDf_Option
-            LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
-            GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
-            
-        else:
-           
-            laptimes_df=self.LapTimesDf
-            LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
-            GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
-            
-        if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):            
-            for drivers in self.DriverList:
-                if y_values_mode == 'deg':                    
-                    y_values=GroupByDriver.get_group(drivers)[sector]-GroupByDriver.get_group(drivers)[sector].min()
-                    x_values=GroupByDriver.get_group(drivers)['StintLaps']
-                    plt.plot(x_values[:-2],y_values[1:-1])
-                else:
-                    y_values=GroupByDriver.get_group(drivers)[sector]
-                    x_values=GroupByDriver.get_group(drivers)['StintLaps']
-                    plt.plot(x_values[:-2],y_values[1:-1])
                     
-            
-            if isinstance(y_median_values,list):
-                plt.plot(laps,y_median_values,marker='o',markersize=8,color='blue')
-            else:
-                pass
-            if isinstance(y_model_values,list):
-                plt.plot(laps,y_model_values,marker='x',markersize=8,color='red')
-            else:
-                pass
-            plt.show()    
-                
-                
-        elif isinstance(driverlist,list):
-            for drivers in driverlist:
-                
-                if y_values_mode == 'deg':
-                    y_values=GroupByDriver.get_group(drivers)[sector]-GroupByDriver.get_group(drivers)[sector].min()
-                    x_values=GroupByDriver.get_group(drivers)['StintLaps']
-                    plt.plot(x_values[:-2],y_values[1:-1])
-                else:
-                    y_values=GroupByDriver.get_group(drivers)[sector]
-                    x_values=GroupByDriver.get_group(drivers)['StintLaps']
-                    plt.plot(x_values[:-2],y_values[1:-1])
-                    
-            
-            if isinstance(y_median_values,np.ndarray):
-                plt.plot(laps,y_median_values,marker='o',markersize=8,color='blue')
-            else:
-                pass
-            if isinstance(y_model_values,np.ndarray):
-                plt.plot(laps,y_model_values,marker='x',markersize=8,color='red')
-            else:
-                pass
-            plt.show()     
-                
-    def GetLaptimesOrDegMedianByDriver(self,laptimes_df,driverlist,y_values_mode,track_sector):
+    def GetLaptimesOrDegMedianByDriver(self,compound,driverlist,y_values_mode,track_sector):
         
         """
        Inputs:
@@ -291,6 +218,7 @@ class Event():
         """
         
         "User entering driverlist='all' or ''"
+        
         if str.lower(track_sector) == 'full lap':
             sector="laptime_fuel_corrected"
         elif str.lower(track_sector) == 's1':
@@ -300,13 +228,20 @@ class Event():
         elif str.lower(track_sector) == 's3':
             sector = "s3"
             
-        if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):  
-            laps=self.NrofLaps
+        if str.lower(comp) == 'prime':
+            laptimes_df=User_Event.LapTimesDf_Prime
+        elif str.lower(comp) == 'option':
+            laptimes_df=User_Event.LapTimesDf_Option
+        else:
+            pass
+        laps=laptimes_df['StintLaps'].max()    
+        
+        if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):              
             for drivers in self.DriverList:
                 y_median_laptime_values=[laptimes_df[sector][laptimes_df['StintLaps']==laps].median() for laps in range(1,laps+1)]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
                 x_median_values=list(range(1,laps+1))
-                if y_values_mode =='lap':
+                if str.lower(y_values_mode) =='lap':
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
@@ -320,7 +255,7 @@ class Event():
                 y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][LapTimesDf_SelectedDrivers['StintLaps']==laps].median() for laps in range(1,laps+1)]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
                 x_median_values=list(range(1,laps+1))
-                if y_values_mode =='lap':
+                if str.lower(y_values_mode) =='lap':
                     return x_median_values,y_median_laptime_values
                 else:
                     return x_median_values,y_median_deg_values
@@ -415,10 +350,10 @@ app.layout = html.Div(children=[
                             html.Div(['Introduce the number of drivers [Top X drivers]:',
                                 dcc.Input(id = 'top drivers input', type = 'text', value = 20),
                                 html.Button(
-                                    children = 'Step 2: Show Graph & Tyre Model Coefficients',
-                                    id = 'draw confirm button',
-                                    type = 'submit',
-                                    n_clicks = 0
+                                    children = 'Step 2: Choose all the user inputs and  Click Here to refresh',
+                                    id = 'refresh button',
+                                    type = 'submit'
+#                                    n_clicks = 0
                                     ),
                                 ],
                                 style = dict(
@@ -537,19 +472,17 @@ def event_starter(button_click,event_naming_convention):
 
 @app.callback([Output('laps filter','options'),
                Output('laps filter','value')],
-              [Input('event confirm button','n_clicks'),
-               Input('compound options dropdown','value')],
-              [State('event input','value'),
-               ])
-def set_nr_of_lapfilter(button_click,compound,event_naming_convention):
-    global comp
-    comp=compound
-    if str.lower(compound) =='prime':
-        maxlaps=User_Event.MaxNrofLaps_Prime
+              [Input('compound options dropdown','value'),
+               Input('top drivers input','value')]
+              )
+def set_nr_of_lapfilter(val1,val2):
+    
+    if str.lower(comp) =='prime':
+        maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
         options=[dict(label=str(i),value=i) for i in range(1, maxlaps+1)]
         value=[d['value'] for d in options]
-    elif str.lower(compound) =='option':
-        maxlaps=User_Event.MaxNrofLaps_Option
+    elif str.lower(comp) =='option':
+        maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
         options=[dict(label=str(i),value=i) for i in range(1, maxlaps+1)]
         value=[d['value'] for d in options]
 
@@ -561,37 +494,27 @@ def set_nr_of_lapfilter(button_click,compound,event_naming_convention):
                 Input('top drivers input','value'),
                 Input('sector options dropdown','value'),
                 Input('mode options dropdown','value'),
-                Input('draw confirm button','n_clicks')])
+                Input('refresh button','n_clicks')
+                ])
 
 def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks):
-    global mode,sector
+    
+    global mode,sector, top_nr_dri,comp
+    
     mode=y_values_mode
     sector=track_sector
-    DriverList=User_Event.TopXDrivers(int(top_drivers))
+    top_nr_dri=top_drivers
+    comp=compound
+   
+    DriverList=User_Event.TopXDrivers(int(top_nr_dri))
     
-#    if Event.NrOfDifferentCompoundsUsed == 1:
-#        #All Drivers Prime, F3 Model
-#        laps,y_median_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf,DriverList,y_values_mode="deg",track_sector='all')
-#        TyreModelCoeffs,TyreModelCovar=Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
-#        TyreModelCoeffs=TyreModelCoeffs.tolist()
-#        y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
-#    else:
-#        #Prime Model
-#        prime_laps,y_median_prime_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Prime,DriverList,y_values_mode='deg',track_sector='s1')
-#        TyreModelCoeffs_prime,TyreModelCovar_Prime=Event.TyreModelCoeffs(prime_laps[:-3],y_median_prime_deg[1:-2])
-#        TyreModelCoeffs_prime=TyreModelCoeffs_prime.tolist()
-#        y_model_prime_deg=Eq_Model(np.array(prime_laps[:-2]),TyreModelCoeffs_prime[0],TyreModelCoeffs_prime[1],TyreModelCoeffs_prime[2])
-#        #Option Model
-#        option_laps,y_median_option_deg=Event.GetLaptimesOrDegMedianByDriver(Event.LapTimesDf_Option,DriverList,y_values_mode="deg",track_sector='s1')
-#        TyreModelCoeffs_option,TyreModelCovar_option=Event.TyreModelCoeffs(option_laps[:-2],y_median_option_deg[1:-1])
-#        TyreModelCoeffs_option=TyreModelCoeffs_option.tolist()
-#        y_model_option_deg=Eq_Model(np.array(option_laps[:-2]),TyreModelCoeffs_option[0],TyreModelCoeffs_option[1],TyreModelCoeffs_option[2])
-
-    laps,y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(User_Event.LapTimesDf,DriverList,mode,sector)
-    
-    TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
-    TyreModelCoeffs=TyreModelCoeffs.tolist()
-    y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
+    laps,y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(compound,DriverList,mode,sector)
+    try:
+        TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps[:-2],y_median_deg[1:-1])
+        TyreModelCoeffs=TyreModelCoeffs.tolist()
+        y_model_deg=Eq_Model(np.array(laps[:-2]),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
+    except:
+        pass
        
     if str.lower(track_sector) == 'full lap':
         sector="laptime_fuel_corrected"
@@ -741,5 +664,16 @@ if __name__ == "__main__":
 
 ###Contar algo agrupando
 #Event.LapTimesDf['StintLaps']=Event.LapTimesDf.groupby(['driver','Pits']).cumcount()+1
-    
+
+
+
+#####compound csv to database
+# STEP 0 db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te') CREATE DDBB Engine
+# conn=db.connect()
+# STEP 1 df_ddbb_compounds = pd.read_csv('TyreCompounds2019ImportDDBB')  
+# STEP 2 df_ddbb_compounds=df_ddbb_compounds.replace(np.nan,'') Replace NaN by empty cells, if not ddbb crashes
+# STEP 3 Option A) df_ddbb_compounds.to_sql('TyreAlloc', con=db, if_exists='replace') if something is wrong
+# STEP 3 Option B) df_ddbb_compounds.to_sql('TyreAlloc', con=db, if_exists='append') if we want to just add a new event
+# STEP 4 conn.close()
+#        db.dispose()
 ###############################################################################
