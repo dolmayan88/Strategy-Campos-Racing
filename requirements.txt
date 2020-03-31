@@ -63,7 +63,6 @@ html5lib==1.0.1
 idna==2.8
 imageio==2.4.1
 imagesize==1.1.0
-ImportLaptimes==0.3
 importlib-metadata==0.6
 ipykernel==5.1.0
 ipython==7.2.0
