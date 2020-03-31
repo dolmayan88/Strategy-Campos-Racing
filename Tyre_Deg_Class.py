@@ -367,10 +367,10 @@ app.layout = html.Div(children=[
                                                         border="2px black solid"
                                                         ),
                                         ),
-                            html.Div([
+                            html.Div(['Introduce the Event Naming Convention to analyse:',
                                 dcc.Input(id = 'event input', type = 'text', value = ''),
                                 html.Button(
-                                    children = 'Confirm Event',
+                                    children = 'Step 1: Confirm Event',
                                     id = 'event confirm button',
                                     type = 'submit',
                                     n_clicks = 0
@@ -379,7 +379,7 @@ app.layout = html.Div(children=[
                                 style = dict(
                                     width = '30%',
                                     display = 'table-cell',
-                                    verticalAlign = "middle",
+                                    verticalAlign = "bottom",
                                                         border="2px black solid"
                                     )
                                 ),
@@ -412,10 +412,10 @@ app.layout = html.Div(children=[
                                                         ),
                                         ),
                         
-                            html.Div([
-                                dcc.Input(id = 'top drivers input', type = 'text', value = 'Enter Top X Drivers you want to analyse'),
+                            html.Div(['Introduce the number of drivers [Top X drivers]:',
+                                dcc.Input(id = 'top drivers input', type = 'text', value = 20),
                                 html.Button(
-                                    children = 'Draw Plot and Calculate Model Coeffs!',
+                                    children = 'Step 2: Show Graph & Tyre Model Coefficients',
                                     id = 'draw confirm button',
                                     type = 'submit',
                                     n_clicks = 0
@@ -424,7 +424,7 @@ app.layout = html.Div(children=[
                                 style = dict(
                                     width = '30%',
                                     display = 'table-cell',
-                                    verticalAlign = "middle",
+                                    verticalAlign = "bottom",
                                     border="2px black solid",
                                     justify='center'
                                     
@@ -446,33 +446,45 @@ app.layout = html.Div(children=[
                             # THIRD ROW DIVS with Selection of Mode (Deg or Laptimes) and Selection of S1/S2/S3/All
                             
                             html.Div([           
-                            html.Div([                  
+                            html.Div(['S1/S2/S3/Full Lap Mode',                 
                                       dcc.Dropdown(id = 'sector options dropdown',
                                                    options=[{'label': i, 'value': i} for i in ['S1','S2','S3','Full Lap']],
                                                    placeholder="Select Sector to analyse or full lap",
                                                    value='Full Lap')
                                         ],
                                                     style = dict(
-                                                        width = '30%',
+                                                        width = '10%',
                                                         display = 'table-cell',
-                                                        verticalAlign = "middle",
-                                                        border="2px black solid"
+                                                        verticalAlign = "bottom",
+                                                        border="2px black solid",
                                                         ),
                                         ),
                         
-                            html.Div([
+                            html.Div(['Deg/Laptimes Mode',
                                 dcc.Dropdown(id = 'mode options dropdown',
                                                    options=[{'label': i, 'value': i[0:3]} for i in ['Degradation','Laptimes']],
                                                    placeholder="Select Graph Mode: Abs Deg or Laptimes",
                                                    value = 'Deg')
                                         ],
                                                     style = dict(
-                                                        width = '30%',
+                                                        width = '10%',
                                                         display = 'table-cell',
-                                                        verticalAlign = "middle",
+                                                        verticalAlign = "bottom",
                                                         border="2px black solid"
                                                         ),
                                         ),
+                            html.Div([
+                                    'Select which laps to display on the plot. Median will be calculated only for these laps selected',
+                                    dcc.Dropdown(
+                                            id='laps filter',
+                                            multi=True                                            
+                                            )],
+                                    style = dict(
+                                                        width = '80%',
+                                                        display = 'table-cell',
+                                                        border="2px black solid"
+                                                        )
+                                            ),
                                 ],
                                 style = dict(
                                     width = '100%',
@@ -481,18 +493,7 @@ app.layout = html.Div(children=[
                                     border="2px black solid"
                                     )),
                             
-                                      # SPACER
-                            
-                            html.P(),
-                            
-                                      # LAP FILTER DIV ROW  
-                                       
-                            html.Div([
-                                    'Select which laps to display on the plot. Median will be calculated only for these laps selected',
-                                    dcc.Dropdown(
-                                            id='laps filter',
-                                            multi=True                                            
-                                            )]),
+
                             
                                       # TRICK TO MAKE CALLBACKS WITHOUT AN OUTPUT
                             html.Div(id='hidden div', style=dict(display = 'none')),
@@ -619,8 +620,7 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
         LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby('driver')
     
-    trace_drivers=[]
-    y_values_mode='deg'
+    trace_drivers=[] #list initialization to plot data from drivers
     
     for drivers in driverlist:
             
@@ -709,7 +709,7 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
 #####################MAIN PROGRAM##############################################                
 
 if __name__ == "__main__":
-    app.run_server()  
+    app.run_server(debug=False) 
 
 ###############################################################################
 
