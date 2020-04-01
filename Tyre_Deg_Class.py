@@ -17,10 +17,12 @@ import math
 from scipy.optimize import curve_fit
 
 import dash
+import dash_table as dt
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input,Output,State
 import plotly.graph_objs as go
+import plotly.figure_factory as ff
 
 ###############################################################################
 global Event, Heidi_DDBB
@@ -42,164 +44,221 @@ def Eq_Model(x,A,B,C):
     
     return A*x+(B*np.exp(C*(x))) 
 
-#def Event_Class_Returner(Event):
-#    return Event
-
-class DDBB():
-    db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
-    
-    def GetData(self,DDBBColumn,DDBBTable,DDBBColumnFilter,DDBBValueFilter):
-        if isinstance(DDBBColumn,list):
-            
-            DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
-                     
-        else:
-            if str.lower(DDBBColumn) == 'all':
-                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
-                
-            else:
-                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
-            
-        if len(DDBB_df)>0:
-            return DDBB_df
-        else:
-            print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
        
 class Event():
 
-    def __init__(self,Naming_convention,DDBB):
-        self.DDBB=DDBB
+    def __init__(self,Naming_convention='',livemargin=3600,pdftiming=False,category='',live=False):
+        
+        
         self.Name = str(Naming_convention)
-        self.Chsip = self.Name.split("_")[0]
-        self.Year = self.Name.split("_")[1][0:2]
-        self.Track = self.Name.split("_")[1][5:8]
-        self.Session = self.Name.split("_")[2]
-        self.PdfFlag = int(self.DDBB.GetData("pdf_flag","Calendar","session_id",self.Name).values)
-        self.TrackFuelPenalty = float(self.DDBB.GetData("fuel_penalty","Calendar","session_id",self.Name).values)
-        self.NrOfDifferentCompoundsUsed = len(np.unique(self.DDBB.GetData("all","TyreAlloc","session",self.Name)[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1
-        self.PrimeCompound = "".join(c for c in str(self.DDBB.GetData("Prime_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
-        self.OptionCompound = "".join(c for c in str(self.DDBB.GetData("Option_Tyre","Calendar","session_id",self.Name).values) if c.isupper())
-        self.DriverList = self.DDBB.GetData("driver","TyreAlloc","session",self.Name)['driver'].unique().tolist() #Now getting the list from tyrealloc table , because in some event, there are less than 20 drivers and it is failing if i choose driverlist from rawtiming or pdftiming with all the drivers
-        self.NrofLaps = int(self.DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'].max())
-        self.DriverEndPosition = self.DDBB.GetData(["driver","position"],"PdfTiming","session",self.Name)[self.DDBB.GetData("lap","PdfTiming","session",self.Name)['lap'] == self.NrofLaps]
-        self.DriverStartPosition =self.DDBB.GetData(["driver","startpos"],"TyreAlloc","session",self.Name)
-        self.LapTimesDf = self.DDBB.GetData(["driver","lap","s1","s2","s3","laptime","InPit","Pits"],"PdfTiming","session",self.Name)
+        self.Chsip = self.Name.split("_")[0] if len(self.Name)>7 else ''
+        self.Year = self.Name.split("_")[1][0:2] if len(self.Name)>7 else ''
+        self.Track = self.Name.split("_")[1][5:8] if len(self.Name)>7 else ''
+        self.Session = self.Name.split("_")[2] if len(self.Name)>7 else ''
+        
+        self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
+        #One Single Access to DB
+        self.CalendarDf=self.getTotalTable("Calendar","Session_id",self.Name)
+        self.TyreAllocDf=self.getTotalTable("TyreAlloc","Session",self.Name)
+        
+        if live:
+            self.LapTimesDf=self.getdata(self.Name,livemargin,pdftiming,category) ######Check this is Miguel getdata
+        else:
+            if pdftiming:
+                self.LapTimesDf=self.getTotalTable("PdfTiming","Session",self.Name)
+            else:
+                self.LapTimesDf=self.getTotalTable("RawTiming","Session",self.Name)
+            
+       
+        
+        self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name)>7 else ''
+        self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name)>7 else 1
+        
+        self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1 if len(self.Name)>7 else 0
+        self.PrimeCompound = "".join(c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
+        self.OptionCompound = "".join(c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
+        self.DriverList = self.TyreAllocDf.driver.unique().tolist() #Now getting the list from tyrealloc table , because in some event, there are less than 20 drivers and it is failing if i choose driverlist from rawtiming or pdftiming with all the drivers
+        self.NrofLaps = int(self.LapTimesDf.lap.max())
+        # self.DriverStartPosition =self.TyreAllocDf[["driver","startpos"] if len(Naming_convention)>7 else ''
+        self.DriverEndPosition = self.LapTimesDf[['driver','position']][self.LapTimesDf.lap==self.NrofLaps]
+
+        
+        
+        #Now this is valid live or not live
+        
         self.LapTimesDf["laptime"]=self.LapTimesDf.laptime.replace('','0:00.000').apply(lambda x: convert2time(x))
         self.LapTimesDf["laptime_fuel_corrected"]=self.LapTimesDf.apply(lambda row: row.laptime + (row.lap-1)*self.TrackFuelPenalty,axis=1)
-        self.DriverCompoundDf= self.DDBB.GetData("all","TyreAlloc","session",self.Name)
+      
         if self.NrOfDifferentCompoundsUsed > 1:
             self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply (lambda row: self.label_compound(row), axis=1)
         else:
             self.LapTimesDf['Tyre_Compound'] = self.PrimeCompound
-        self.LapTimesDf['Pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
-        self.LapTimesDf['Stint']=self.LapTimesDf['Pits']+1
-        self.LapTimesDf['StintLaps']=self.LapTimesDf.groupby(['driver','Pits']).cumcount()+1
+            
+        self.LapTimesDf['pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
+        self.LapTimesDf['Stint']=self.LapTimesDf['pits']+1
+        self.LapTimesDf['StintLaps']=self.LapTimesDf.groupby(['driver','pits']).cumcount()+1
+        
         self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.PrimeCompound]
         self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
         self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.OptionCompound]
         self.MaxNrofLaps_Option = self.LapTimesDf_Option['StintLaps'].max()
         self.DriverList_Prime = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.PrimeCompound].unique().tolist()
         self.DriverList_Option = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.OptionCompound].unique().tolist()
+    
+    
+        
+    
+    def getPartialTable(self,DDBBColumn,DDBBTable,DDBBColumnFilter=None,DDBBValueFilter=None):
+        
+        if (DDBBColumnFilter==None) and (DDBBValueFilter==None):
+            if isinstance(DDBBColumn,list):
+            
+                DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "'",self.db)
+                     
+            
+            if (str.lower(DDBBColumn) == 'all') or (str.lower(DDBBColumn) == '*'):
+                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "'",self.db)
+                
+            else:
+                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable +"'",self.db)
+            
+            if len(DDBB_df)>0:
+                return DDBB_df
+            else:
+                print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
+        else:
+            if isinstance(DDBBColumn,list):
+            
+                DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+                     
+            
+            if (str.lower(DDBBColumn) == 'all') or (str.lower(DDBBColumn) == '*'):
+                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+                
+            else:
+                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+            
+            if len(DDBB_df)>0:
+                return DDBB_df
+            else:
+                print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
+            
+        
+          
+    def getTotalTable(self,DDBBTable,DDBBColumnFilter,DDBBValueFilter):
+    
+        if (DDBBColumnFilter==None) and (DDBBValueFilter==None):
+            DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "'",self.db)
+        else:
+            DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+            
+            
+            
+            
+        if len(DDBB_df)>0:
+            return DDBB_df
+        else:
+            print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
 
     def label_pits (self,row):
 
-        if row['Pits'] == 0 and row['InPit']==0:
+        if row['pits'] == 0 and row['InPit']==0:
            return int(0)
              
-        if row['Pits'] == 1 and row['InPit']==1:
+        if row['pits'] == 1 and row['InPit']==1:
            return int(0)
-        if row['Pits'] == 1 and row['InPit']==0:
+        if row['pits'] == 1 and row['InPit']==0:
            return int(1) 
-        if row['Pits'] == 2 and row['InPit']==1:
+        if row['pits'] == 2 and row['InPit']==1:
            return int(1)
-        if row['Pits'] == 2 and row['InPit']==0:
+        if row['pits'] == 2 and row['InPit']==0:
            return int(2)
-        if row['Pits'] == 3 and row['InPit']==1:
+        if row['pits'] == 3 and row['InPit']==1:
            return int(2)
-        if row['Pits'] == 3 and row['InPit']==0:
+        if row['pits'] == 3 and row['InPit']==0:
            return int(3) 
-        if row['Pits'] == 4 and row['InPit']==1:
+        if row['pits'] == 4 and row['InPit']==1:
            return int(3)
-        if row['Pits'] == 4 and row['InPit']==0:
+        if row['pits'] == 4 and row['InPit']==0:
            return int(4)
-        if row['Pits'] == 5 and row['InPit']==1:
+        if row['pits'] == 5 and row['InPit']==1:
            return int(4)
-        if row['Pits'] == 5 and row['InPit']==0:
+        if row['pits'] == 5 and row['InPit']==0:
            return int(5) 
-        if row['Pits'] == 6 and row['InPit']==1:
+        if row['pits'] == 6 and row['InPit']==1:
            return int(5)
-        if row['Pits'] == 6 and row['InPit']==0:
+        if row['pits'] == 6 and row['InPit']==0:
            return int(6)
-        if row['Pits'] == 7 and row['InPit']==1:
+        if row['pits'] == 7 and row['InPit']==1:
            return int(6)
-        if row['Pits'] == 7 and row['InPit']==0:
+        if row['pits'] == 7 and row['InPit']==0:
            return int(7)  
-        if row['Pits'] == 8 and row['InPit']==1:
+        if row['pits'] == 8 and row['InPit']==1:
            return int(7)
-        if row['Pits'] == 8 and row['InPit']==0:
+        if row['pits'] == 8 and row['InPit']==0:
            return int(8)
-        if row['Pits'] == 9 and row['InPit']==1:
+        if row['pits'] == 9 and row['InPit']==1:
            return int(8)
-        if row['Pits'] == 9 and row['InPit']==0:
+        if row['pits'] == 9 and row['InPit']==0:
            return int(9)          
-        if row['Pits'] == 10 and row['InPit']==1:
+        if row['pits'] == 10 and row['InPit']==1:
            return int(9)
-        if row['Pits'] == 10 and row['InPit']==0:
+        if row['pits'] == 10 and row['InPit']==0:
            return int(10)        
         
     def label_compound (self,row):
        for driver in self.DriverList:
-           if row['driver'] == driver and row['Pits'] == 0:
-               return self.DriverCompoundDf['s1'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]        
-           if row['driver'] == driver and row['Pits'] == 1:
+           if row['driver'] == driver and row['pits'] == 0:
+               return self.TyreAllocDf['s1'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]        
+           if row['driver'] == driver and row['pits'] == 1:
                if row['InPit']== 1:                    
-                   return self.DriverCompoundDf['s1'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]                  
+                   return self.TyreAllocDf['s1'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]                  
                else:
-                   return self.DriverCompoundDf['s2'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
               
-           if row['driver'] == driver and row['Pits'] == 2:
+           if row['driver'] == driver and row['pits'] == 2:
                if row['InPit']== 1:
                    
-                   return self.DriverCompoundDf['s2'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0] 
+                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0] 
                else:
-                   return self.DriverCompoundDf['s3'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
-           if row['driver'] == driver and row['Pits'] == 3:
+                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+           if row['driver'] == driver and row['pits'] == 3:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s3'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s4'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
-           if row['driver'] == driver and row['Pits'] == 4:
+                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+           if row['driver'] == driver and row['pits'] == 4:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s4'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s5'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
-           if row['driver'] == driver and row['Pits'] == 5:
+                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+           if row['driver'] == driver and row['pits'] == 5:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s5'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s6'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
-           if row['driver'] == driver and row['Pits'] == 6:
+                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+           if row['driver'] == driver and row['pits'] == 6:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s6'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s7'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
-           if row['driver'] == driver and row['Pits'] == 7:
+                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+           if row['driver'] == driver and row['pits'] == 7:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s7'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s8'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
            
-           if row['driver'] == driver and row['Pits'] == 8:
+           if row['driver'] == driver and row['pits'] == 8:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s8'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s9'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
            
-           if row['driver'] == driver and row['Pits'] == 9:
+           if row['driver'] == driver and row['pits'] == 9:
                if row['InPit']== 1:
-                   return self.DriverCompoundDf['s9'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                else:
-                   return self.DriverCompoundDf['s10'][self.DriverCompoundDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s10'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                                   
     def TopXDrivers(self,top_number):
         top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
@@ -273,15 +332,10 @@ class Event():
     
         return coeff,cov
 
-class Strategy(Event):
-    pass
-
-class Results(Event):
-    pass
-
 ######################DASH APP#################################################
+
 app=dash.Dash(__name__)
-    
+
 server=app.server
     
 app.layout = html.Div(children=[
@@ -290,17 +344,16 @@ app.layout = html.Div(children=[
                       html.Div([                  
                               html.Div([
                                       dcc.Dropdown(id = 'plot options dropdown',
-                                                   options=[{'label': i, 'value': i} for i in ['laptime','median','model']],
+                                                   options=[{'label': i, 'value': i} for i in ['drivers','median','model']],
                                                    placeholder="Select Plot Calculations",
                                                    multi=True,
-                                                   value=['laptime','median','model']
+                                                   value=['drivers','median','model']
                                                    ),
                                         ],
                                                     style = dict(
                                                         width = '68%',
                                                         display = 'table-cell',
-                                                        verticalAlign = "middle",
-                                                        border="2px black solid"
+                                                        verticalAlign = "middle"
                                                         ),
                                         ),
                             html.Div(['Introduce the Event Naming Convention to analyse:',
@@ -324,7 +377,7 @@ app.layout = html.Div(children=[
                                     width = '100%',
                                     display = 'table',
                                     text_align = 'center',
-                                                        border="2px black solid"
+                                                        
                                     )),
                                                     
                                       # SPACER
@@ -337,14 +390,12 @@ app.layout = html.Div(children=[
                             html.Div([                  
                                       dcc.Dropdown(id = 'compound options dropdown',
                                                    options=[{'label': i, 'value': i} for i in ['Prime','Option','Wet']],
-                                                   placeholder="Select Compound",
-                                                   value='Prime'),
+                                                   placeholder="Select Compound"),
                                         ],
                                                     style = dict(
                                                         width = '68%',
                                                         display = 'table-cell',
-                                                        verticalAlign = "middle",
-                                                        border="2px black solid"
+                                                        verticalAlign = "middle"
                                                         ),
                                         ),
                         
@@ -369,8 +420,7 @@ app.layout = html.Div(children=[
                                 style = dict(
                                     width = '100%',
                                     display = 'table',
-                                    align = 'center',
-                                    border="2px black solid"
+                                    align = 'center'
                                     )),
                             
                                       # SPACER
@@ -392,7 +442,6 @@ app.layout = html.Div(children=[
                                                         width = '10%',
                                                         display = 'table-cell',
                                                         verticalAlign = "bottom",
-                                                        border="2px black solid",
                                                         ),
                                         ),
                         
@@ -405,8 +454,7 @@ app.layout = html.Div(children=[
                                                     style = dict(
                                                         width = '10%',
                                                         display = 'table-cell',
-                                                        verticalAlign = "bottom",
-                                                        border="2px black solid"
+                                                        verticalAlign = "bottom"
                                                         ),
                                         ),
                             html.Div([
@@ -417,16 +465,14 @@ app.layout = html.Div(children=[
                                             )],
                                     style = dict(
                                                         width = '80%',
-                                                        display = 'table-cell',
-                                                        border="2px black solid"
+                                                        display = 'table-cell'
                                                         )
                                             ),
                                 ],
                                 style = dict(
                                     width = '100%',
                                     display = 'table',
-                                    align = 'center',
-                                    border="2px black solid"
+                                    align = 'center'
                                     )),
                             
 
@@ -448,13 +494,15 @@ app.layout = html.Div(children=[
                             html.P(),
                                      #EQ MODEL + COEFFS PBTAINED FROM MODEL FIT (50% Left)
                             html.Div([
-                            html.Div([],style=dict(border="2px black solid",width='45%',display='table-cell')),
+                            html.Div(id="graph-container", children=[dcc.Graph(id='coeffs table')
+                                
+                                    ]),
                                      
                                     #Other Option (50% Right)
                                              
-                            html.Div([],style=dict(border="2px red solid",width='45%',display='table-cell'))
+                            html.Div([],style=dict(width='45%',display='table-cell'))
                             
-                            ],style=dict(display='table',border="2px blue solid",width='100%'))
+                            ],style=dict(display='table',width='100%'))
                             ])
                                                     
                                     
@@ -463,13 +511,12 @@ app.layout = html.Div(children=[
               [State('event input','value')])
 
 def event_starter(button_click,event_naming_convention):
-    global User_Event,Heidi_DDBB,conn
+    global User_Event,conn
     if button_click>0:
-        Heidi_DDBB=DDBB()
-        conn = Heidi_DDBB.db.connect()
-        User_Event=Event(event_naming_convention,Heidi_DDBB)
+        User_Event=Event(Naming_convention=event_naming_convention)
+        conn = User_Event.db.connect()        
         conn.close()
-        Heidi_DDBB.db.dispose()
+        User_Event.db.dispose()
 
 @app.callback([Output('laps filter','options'),
                Output('laps filter','value')],
@@ -489,7 +536,8 @@ def set_nr_of_lapfilter(val1,val2):
 
     return options,value        
      
-@app.callback(Output('feature-graphic','figure'),
+@app.callback([Output('feature-graphic','figure'),
+              Output('coeffs table', 'figure')],
                [Input('plot options dropdown','value'),
                 Input('compound options dropdown','value'),
                 Input('top drivers input','value'),
@@ -502,7 +550,7 @@ def set_nr_of_lapfilter(val1,val2):
 
 def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks,filtered_laps):
     
-    global mode,sector, top_nr_dri,comp,laps
+    global mode,sector, top_nr_dri,comp,laps,TyreModelCoeffs,a
     
     mode=y_values_mode
     sector=track_sector
@@ -513,13 +561,15 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
     
     
     y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,DriverList,mode,sector)
-    try:
-        TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
-        TyreModelCoeffs=TyreModelCoeffs.tolist()
-        y_model_deg=Eq_Model(np.array(laps),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
-    except:
-        pass
-       
+    
+    TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
+    TyreModelCoeffs=TyreModelCoeffs.tolist()
+    y_model_deg=Eq_Model(np.array(laps),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
+    print(y_model_deg)
+    dff = pd.DataFrame(data=[{'Coeff A':round(TyreModelCoeffs[0],3),'Coeff B':round(TyreModelCoeffs[1],3),'Coeff C':round(TyreModelCoeffs[2],3)}]) # replace with your own data processing code
+    new_table_figure = ff.create_table(dff)
+    a=TyreModelCoeffs
+   
     if str.lower(track_sector) == 'full lap':
         sector="laptime_fuel_corrected"
     elif str.lower(track_sector) == 's1':
@@ -601,11 +651,11 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
             hovermode='closest'
         )
     data=[]
-    if ('laptime' in plot_options) and ('median' in plot_options) and ('model' in plot_options):    
+    if ('drivers' in plot_options) and ('median' in plot_options) and ('model' in plot_options):    
         trace_drivers.append(trace_median)
         trace_drivers.append(trace_model)
         data=trace_drivers
-    elif ('laptime' in plot_options) and ('median' in plot_options):
+    elif ('drivers' in plot_options) and ('median' in plot_options):
         trace_drivers.append(trace_median)
         data=trace_drivers
     elif ('median' in plot_options) and ('model' in plot_options):
@@ -613,29 +663,32 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
         trace_all.append(trace_median)
         trace_all.append(trace_model)
         data = trace_all
-    elif ('laptime' in plot_options) and ('model' in plot_options):
+    elif ('drivers' in plot_options) and ('model' in plot_options):
         trace_drivers.append(trace_model)
         data=trace_drivers
-    elif ('laptime' in plot_options):
+    elif ('drivers' in plot_options):
         data = trace_drivers
     elif ('median' in plot_options):
         data = [trace_median]
     elif ('model' in plot_options):
         data = [trace_model]
     conn.close()
-    Heidi_DDBB.db.dispose()
+    User_Event.db.dispose()
     
-    return dict(data=data,layout=layout)
+    return dict(data=data,layout=layout),new_table_figure
 
-#print(DriverList)
-#print(Event.DriverList_Prime)
-#print(Event.DriverList_Option)
-#conn.close()
-#Heidi_DDBB.db.dispose()
+@app.callback(Output('graph-container', 'style'), [Input('compound options dropdown','value')])
+def hide_graph(my_input):
+    if my_input:
+        return dict(width='45%',display='block')
+    return dict(display='none')
+    
+    
 
 #####################MAIN PROGRAM##############################################                
 
 if __name__ == "__main__":
+    
     app.run_server(debug=False) 
 
 ###############################################################################
