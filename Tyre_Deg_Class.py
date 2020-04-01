@@ -513,7 +513,7 @@ app.layout = html.Div(children=[
 def event_starter(button_click,event_naming_convention):
     global User_Event,conn
     if button_click>0:
-        User_Event=Event(Naming_convention=event_naming_convention)
+        User_Event=Event(Naming_convention=event_naming_convention,pdftiming=True)
         conn = User_Event.db.connect()        
         conn.close()
         User_Event.db.dispose()
