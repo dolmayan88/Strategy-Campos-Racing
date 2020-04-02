@@ -77,7 +77,7 @@ class Event():
         self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1 if len(self.Name)>7 else 0
         self.PrimeCompound = "".join(c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
         self.OptionCompound = "".join(c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
-        self.DriverList = self.TyreAllocDf.driver.unique().tolist() #Now getting the list from tyrealloc table , because in some event, there are less than 20 drivers and it is failing if i choose driverlist from rawtiming or pdftiming with all the drivers
+        self.DriverList = self.LapTimesDf.driver.unique().tolist() 
         self.NrofLaps = int(self.LapTimesDf.lap.max())
         # self.DriverStartPosition =self.TyreAllocDf[["driver","startpos"] if len(Naming_convention)>7 else ''
         self.DriverEndPosition = self.LapTimesDf[['driver','position']][self.LapTimesDf.lap==self.NrofLaps]
