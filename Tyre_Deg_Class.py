@@ -327,10 +327,13 @@ class Event():
 #        y_weight = np.empty(len(laptimes))
 #        y_weight.fill(1)
 #        y_weight[10:] = 0.1
-        
         coeff,cov =curve_fit(Eq_Model,laps,laptimes)#,sigma=y_weight,absolute_sigma=True)
-    
-        return coeff,cov
+        try:
+            return coeff.tolist(),cov.tolist()
+        except:
+            return[0,0,0],[0,0,0]
+
+
 
 ######################DASH APP#################################################
 
@@ -496,11 +499,12 @@ app.layout = html.Div(children=[
                             html.Div([
                             html.Div(id="graph-container", children=[dcc.Graph(id='coeffs table')
                                 
-                                    ]),
+                                    ])
+                                #,
                                      
                                     #Other Option (50% Right)
                                              
-                            html.Div([],style=dict(width='45%',display='table-cell'))
+                            #html.Div([],style=dict(width='45%',display='table-cell'))
                             
                             ],style=dict(display='table',width='100%'))
                             ])
@@ -550,7 +554,7 @@ def set_nr_of_lapfilter(val1,val2):
 
 def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks,filtered_laps):
     
-    global mode,sector, top_nr_dri,comp,laps,TyreModelCoeffs,a
+    global mode,sector, top_nr_dri,comp,laps,TyreModelCoeffs
     
     mode=y_values_mode
     sector=track_sector
@@ -563,10 +567,9 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
     y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,DriverList,mode,sector)
     
     TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
-    TyreModelCoeffs=TyreModelCoeffs.tolist()
     y_model_deg=Eq_Model(np.array(laps),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
     print(y_model_deg)
-    dff = pd.DataFrame(data=[{'Coeff A':round(TyreModelCoeffs[0],3),'Coeff B':round(TyreModelCoeffs[1],3),'Coeff C':round(TyreModelCoeffs[2],3)}]) # replace with your own data processing code
+    dff = pd.DataFrame(data=[{'Coeff A':round(TyreModelCoeffs[0],3),'Coeff B':round(TyreModelCoeffs[1],3),'Coeff C':round(TyreModelCoeffs[2],3),'Session':str(User_Event.Name),'Compound':str(comp),'TopDriversX':str(top_nr_dri),'Filtered Laps':",".join([str(items) for items in laps])}]) # replace with your own data processing code
     new_table_figure = ff.create_table(dff)
     a=TyreModelCoeffs
    
@@ -680,7 +683,7 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
 @app.callback(Output('graph-container', 'style'), [Input('compound options dropdown','value')])
 def hide_graph(my_input):
     if my_input:
-        return dict(width='45%',display='block')
+        return dict(width='100%',display='block')
     return dict(display='none')
     
     
@@ -727,7 +730,7 @@ if __name__ == "__main__":
 #####compound csv to database
 # STEP 0 db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te') CREATE DDBB Engine
 # conn=db.connect()
-# STEP 1 df_ddbb_compounds = pd.read_csv('TyreCompounds2019ImportDDBB')  
+# STEP 1 df_ddbb_compounds = pd.read_csv('TyreCompounds2019ImportDDBB.csv')  
 # STEP 2 df_ddbb_compounds=df_ddbb_compounds.replace(np.nan,'') Replace NaN by empty cells, if not ddbb crashes
 # STEP 3 Option A) df_ddbb_compounds.to_sql('TyreAlloc', con=db, if_exists='replace') if something is wrong
 # STEP 3 Option B) df_ddbb_compounds.to_sql('TyreAlloc', con=db, if_exists='append') if we want to just add a new event
