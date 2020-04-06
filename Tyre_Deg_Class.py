@@ -247,7 +247,7 @@ class Event():
         top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
         return top_driver_list
                     
-    def GetLaptimesOrDegMedianByDriver(self,laps_filter,compound,driverlist,y_values_mode,track_sector):
+    def GetLaptimesOrDegMedianByDriver(self,laps_filter,compound,driverlist,y_values_mode,sector):
         
         """
        Inputs:
@@ -261,19 +261,10 @@ class Event():
         """
         
         "User entering driverlist='all' or ''"
-        
-        if str.lower(track_sector) == 'full lap':
-            sector="laptime_fuel_corrected"
-        elif str.lower(track_sector) == 's1':
-            sector = "s1"
-        elif str.lower(track_sector) == 's2':
-            sector = "s2"
-        elif str.lower(track_sector) == 's3':
-            sector = "s3"
-            
-        if str.lower(comp) == 'prime':
+
+        if str.lower(compound) == 'prime':
             laptimes_df=User_Event.LapTimesDf_Prime
-        elif str.lower(comp) == 'option':
+        elif str.lower(compound) == 'option':
             laptimes_df=User_Event.LapTimesDf_Option
         else:
             pass
@@ -506,7 +497,7 @@ def eventclasscreation(button_click,event_naming_convention):
               [Input('compound options dropdown','value'),
                Input('top drivers input','value')]
               )
-def updatelapfilter(val1,val2):
+def updatelapfilter(comp,top_nr_dri):
     
     if str.lower(comp) =='prime':
         maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
@@ -531,51 +522,24 @@ def updatelapfilter(val1,val2):
 
 def updategraph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks,filtered_laps):
     
-    global mode, sector, top_nr_dri, comp, laps, TyreModelCoeffs, actual_comp
-    
-    mode=y_values_mode
-    sector=track_sector
-    top_nr_dri=top_drivers
-    comp=compound
+    global laps, TyreModelCoeffs, actual_comp #Global Variables to update Table
+
     laps=sorted(filtered_laps)
+    sector = GetSectorMode(track_sector)
+    Driverlist=User_Event.TopXDrivers(int(top_drivers))
 
-    Driverlist=User_Event.TopXDrivers(int(top_nr_dri))
+    #Get median values
+    y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,Driverlist,y_values_mode,sector)
 
-    y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,Driverlist,mode,sector)
-    
+    #Get Model Values
     TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
     y_model_deg=Eq_Model(np.array(laps),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
-    print(y_model_deg)
-    #new_table_figure = updatetabledata(TyreModelCoeffs, actual_comp, comp, laps, top_nr_dri)
+
+    #Get Compound Selected Data Values for getting driver values
+    actual_comp, laptimes_df, GroupByDriver = GetCompoundData(Driverlist, compound)
 
 
-    if str.lower(track_sector) == 'full lap':
-        sector="laptime_fuel_corrected"
-    elif str.lower(track_sector) == 's1':
-        sector = "s1"
-    elif str.lower(track_sector) == 's2':
-        sector = "s2"
-    elif str.lower(track_sector) == 's3':
-        sector = "s3"
-
-    if str.lower(compound) =='prime':
-        actual_comp = User_Event.PrimeCompound
-        laptimes_df=User_Event.LapTimesDf_Prime
-        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(Driverlist)]
-        GroupByDriver=LapTimesDf_SelectedDrivers.groupby(['driver','Stint'])
-
-    elif str.lower(compound) == 'option':
-        actual_comp = User_Event.OptionCompound
-        laptimes_df=User_Event.LapTimesDf_Option
-        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(Driverlist)]
-        GroupByDriver=LapTimesDf_SelectedDrivers.groupby(['driver','Stint'])
-
-    else:
-        actual_comp = User_Event.PrimeCompound
-        laptimes_df=User_Event.LapTimesDf
-        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(Driverlist)]
-        GroupByDriver=LapTimesDf_SelectedDrivers.groupby(['driver','Stint'])
-
+    #Definition of Scatters to plot (Drivers + Median + Math Model)
     trace_drivers = GetDriversData(GroupByDriver, Driverlist, laps, laptimes_df, sector, y_values_mode)
 
     trace_median=go.Scatter(
@@ -624,6 +588,42 @@ def updategraph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_c
     
     return dict(data=data,layout=layout)#,new_table_figure
 
+
+def GetCompoundData(Driverlist, compound):
+    global actual_comp
+    if str.lower(compound) == 'prime':
+        actual_comp = User_Event.PrimeCompound
+        laptimes_df = User_Event.LapTimesDf_Prime
+        LapTimesDf_SelectedDrivers = laptimes_df[laptimes_df['driver'].isin(Driverlist)]
+        GroupByDriver = LapTimesDf_SelectedDrivers.groupby(['driver', 'Stint'])
+
+    elif str.lower(compound) == 'option':
+        actual_comp = User_Event.OptionCompound
+        laptimes_df = User_Event.LapTimesDf_Option
+        LapTimesDf_SelectedDrivers = laptimes_df[laptimes_df['driver'].isin(Driverlist)]
+        GroupByDriver = LapTimesDf_SelectedDrivers.groupby(['driver', 'Stint'])
+
+    else:
+        actual_comp = User_Event.PrimeCompound
+        laptimes_df = User_Event.LapTimesDf
+        LapTimesDf_SelectedDrivers = laptimes_df[laptimes_df['driver'].isin(Driverlist)]
+        GroupByDriver = LapTimesDf_SelectedDrivers.groupby(['driver', 'Stint'])
+    return actual_comp, laptimes_df, GroupByDriver
+
+
+def GetSectorMode(track_sector):
+
+    if str.lower(track_sector) == 'full lap':
+        sector = "laptime_fuel_corrected"
+    elif str.lower(track_sector) == 's1':
+        sector = "s1"
+    elif str.lower(track_sector) == 's2':
+        sector = "s2"
+    elif str.lower(track_sector) == 's3':
+        sector = "s3"
+    return sector
+
+
 def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_values_mode):
     trace_drivers = []  # list initialization to plot data from drivers
     for drivers in driverlist:
@@ -651,8 +651,10 @@ def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_value
 
     return trace_drivers
 
-@app.callback(Output('coeffs table', 'figure'), [Input('feature-graphic','figure')])
-def updatetabledata(figure):
+@app.callback(Output('coeffs table', 'figure'), [Input('feature-graphic','figure'),
+                                                 Input('compound options dropdown','value'),
+                                                 Input('top drivers input','value')])
+def updatetabledata(figure,comp,top_nr_dri):
     dff = pd.DataFrame(data=[{'Coeff A': round(TyreModelCoeffs[0], 3), 'Coeff B': round(TyreModelCoeffs[1], 3),
                               'Coeff C': round(TyreModelCoeffs[2], 3), 'Session': str(User_Event.Name),
                               'Prime/Option': comp, 'Compound': actual_comp, 'TopDriversX': str(top_nr_dri),
