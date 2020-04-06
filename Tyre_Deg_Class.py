@@ -264,8 +264,10 @@ class Event():
 
         if str.lower(compound) == 'prime':
             laptimes_df=User_Event.LapTimesDf_Prime
+            #laptimes_df_cleanLaps=CleanLapTimesDf(laptimes_df)
         elif str.lower(compound) == 'option':
             laptimes_df=User_Event.LapTimesDf_Option
+            #laptimes_df_cleanlaps = CleanLapTimesDf(laptimes_df)
         else:
             pass
 
@@ -285,7 +287,7 @@ class Event():
             for drivers in driverlist:
                 LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
 #                laps = LapTimesDf_SelectedDrivers['StintLaps'].max()
-                y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][LapTimesDf_SelectedDrivers['StintLaps']==lap].median() for lap in laps_filter]
+                y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][(LapTimesDf_SelectedDrivers['StintLaps']==lap) & (LapTimesDf_SelectedDrivers['InPit']==0)].median() for lap in laps_filter]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
 #                x_median_values=list(range(1,laps+1))
                 if str.lower(y_values_mode) =='lap':
@@ -501,11 +503,11 @@ def updatelapfilter(comp,top_nr_dri):
     
     if str.lower(comp) =='prime':
         maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
-        options=[dict(label=str(i),value=i) for i in range(1, maxlaps+1)]
+        options=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
         value=[d['value'] for d in options]
     elif str.lower(comp) =='option':
         maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
-        options=[dict(label=str(i),value=i) for i in range(1, maxlaps+1)]
+        options=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
         value=[d['value'] for d in options]
 
     return options,value        
@@ -624,14 +626,20 @@ def GetSectorMode(track_sector):
     return sector
 
 
+def CleanLapTimesDf(laptimes_df):
+    pass
+
+
+    #return laptimes_df_cleanlaps
+
 def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_values_mode):
     trace_drivers = []  # list initialization to plot data from drivers
     for drivers in driverlist:
         for stint in laptimes_df['Stint'][laptimes_df['driver'] == drivers].unique().tolist():
             if str.lower(y_values_mode) == 'deg':
-                y_values = GroupByDriver.get_group((drivers, stint))[sector][
+                y_values = GroupByDriver.get_group((drivers, stint))[sector][:-1][
                                GroupByDriver.get_group((drivers, stint))['StintLaps'].isin(laps)] - \
-                           GroupByDriver.get_group((drivers, stint))[sector][
+                           GroupByDriver.get_group((drivers, stint))[sector][:-1][
                                GroupByDriver.get_group((drivers, stint))['StintLaps'].isin(laps)].min()
                 #                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group(drivers)['StintLaps'].isin(laps)]
                 trace_drivers.append(go.Scatter(
@@ -640,7 +648,7 @@ def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_value
                     mode='lines+markers',
                     name=drivers + "_" + str(stint)))
             else:
-                y_values = GroupByDriver.get_group((drivers, stint))[sector][
+                y_values = GroupByDriver.get_group((drivers, stint))[sector][:-1][
                     GroupByDriver.get_group((drivers, stint))['StintLaps'].isin(laps)]
                 #                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]
                 trace_drivers.append(go.Scatter(
