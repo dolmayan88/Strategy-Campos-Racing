@@ -26,6 +26,7 @@ import plotly.figure_factory as ff
 
 ###############################################################################
 global Event, Heidi_DDBB
+
 ######################CLASSES AND FUNCTIONS####################################
 
 def convert2time(laptime):
@@ -44,12 +45,10 @@ def Eq_Model(x,A,B,C):
     
     return A*x+(B*np.exp(C*(x))) 
 
-       
 class Event():
 
     def __init__(self,Naming_convention='',livemargin=3600,pdftiming=False,category='',live=False):
-        
-        
+
         self.Name = str(Naming_convention)
         self.Chsip = self.Name.split("_")[0] if len(self.Name)>7 else ''
         self.Year = self.Name.split("_")[1][0:2] if len(self.Name)>7 else ''
@@ -68,9 +67,7 @@ class Event():
                 self.LapTimesDf=self.getTotalTable("PdfTiming","Session",self.Name)
             else:
                 self.LapTimesDf=self.getTotalTable("RawTiming","Session",self.Name)
-            
-       
-        
+
         self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name)>7 else ''
         self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name)>7 else 1
         
@@ -82,8 +79,6 @@ class Event():
         # self.DriverStartPosition =self.TyreAllocDf[["driver","startpos"] if len(Naming_convention)>7 else ''
         self.DriverEndPosition = self.LapTimesDf[['driver','position']][self.LapTimesDf.lap==self.NrofLaps]
 
-        
-        
         #Now this is valid live or not live
         
         self.LapTimesDf["laptime"]=self.LapTimesDf.laptime.replace('','0:00.000').apply(lambda x: convert2time(x))
@@ -97,25 +92,20 @@ class Event():
         self.LapTimesDf['pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
         self.LapTimesDf['Stint']=self.LapTimesDf['pits']+1
         self.LapTimesDf['StintLaps']=self.LapTimesDf.groupby(['driver','pits']).cumcount()+1
-        
         self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.PrimeCompound]
         self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
         self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.OptionCompound]
         self.MaxNrofLaps_Option = self.LapTimesDf_Option['StintLaps'].max()
         self.DriverList_Prime = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.PrimeCompound].unique().tolist()
         self.DriverList_Option = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.OptionCompound].unique().tolist()
-    
-    
-        
-    
+
     def getPartialTable(self,DDBBColumn,DDBBTable,DDBBColumnFilter=None,DDBBValueFilter=None):
         
         if (DDBBColumnFilter==None) and (DDBBValueFilter==None):
             if isinstance(DDBBColumn,list):
             
                 DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "'",self.db)
-                     
-            
+
             if (str.lower(DDBBColumn) == 'all') or (str.lower(DDBBColumn) == '*'):
                 DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "'",self.db)
                 
@@ -130,8 +120,7 @@ class Event():
             if isinstance(DDBBColumn,list):
             
                 DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
-                     
-            
+
             if (str.lower(DDBBColumn) == 'all') or (str.lower(DDBBColumn) == '*'):
                 DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
                 
@@ -142,19 +131,14 @@ class Event():
                 return DDBB_df
             else:
                 print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
-            
-        
-          
+
     def getTotalTable(self,DDBBTable,DDBBColumnFilter,DDBBValueFilter):
     
         if (DDBBColumnFilter==None) and (DDBBValueFilter==None):
             DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "'",self.db)
         else:
             DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
-            
-            
-            
-            
+
         if len(DDBB_df)>0:
             return DDBB_df
         else:
@@ -164,7 +148,6 @@ class Event():
 
         if row['pits'] == 0 and row['InPit']==0:
            return int(0)
-             
         if row['pits'] == 1 and row['InPit']==1:
            return int(0)
         if row['pits'] == 1 and row['InPit']==0:
@@ -294,8 +277,7 @@ class Event():
             laptimes_df=User_Event.LapTimesDf_Option
         else:
             pass
-           
-        
+
         if (isinstance(driverlist,str)) and ((str.lower(driverlist) == 'all') or (driverlist == '')):              
             for drivers in self.DriverList:
                 y_median_laptime_values=[laptimes_df[sector][laptimes_df['StintLaps']==lap].median() for lap in laps_filter]
@@ -332,8 +314,6 @@ class Event():
             return coeff.tolist(),cov.tolist()
         except:
             return[0,0,0],[0,0,0]
-
-
 
 ######################DASH APP#################################################
 
@@ -508,13 +488,12 @@ app.layout = html.Div(children=[
                             
                             ],style=dict(display='table',width='100%'))
                             ])
-                                                    
-                                    
+
 @app.callback(Output('hidden div','children'),
               [Input('event confirm button','n_clicks')],
               [State('event input','value')])
 
-def event_starter(button_click,event_naming_convention):
+def eventclasscreation(button_click,event_naming_convention):
     global User_Event,conn
     if button_click>0:
         User_Event=Event(Naming_convention=event_naming_convention,pdftiming=True)
@@ -527,7 +506,7 @@ def event_starter(button_click,event_naming_convention):
               [Input('compound options dropdown','value'),
                Input('top drivers input','value')]
               )
-def set_nr_of_lapfilter(val1,val2):
+def updatelapfilter(val1,val2):
     
     if str.lower(comp) =='prime':
         maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
@@ -540,8 +519,7 @@ def set_nr_of_lapfilter(val1,val2):
 
     return options,value        
      
-@app.callback([Output('feature-graphic','figure'),
-              Output('coeffs table', 'figure')],
+@app.callback(Output('feature-graphic','figure'),
                [Input('plot options dropdown','value'),
                 Input('compound options dropdown','value'),
                 Input('top drivers input','value'),
@@ -549,30 +527,28 @@ def set_nr_of_lapfilter(val1,val2):
                 Input('mode options dropdown','value'),
                 Input('refresh button','n_clicks'),
                 Input('laps filter','value')
-                
                 ])
 
-def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks,filtered_laps):
+def updategraph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks,filtered_laps):
     
-    global mode,sector, top_nr_dri,comp,laps,TyreModelCoeffs
+    global mode, sector, top_nr_dri, comp, laps, TyreModelCoeffs, actual_comp
     
     mode=y_values_mode
     sector=track_sector
     top_nr_dri=top_drivers
     comp=compound
     laps=sorted(filtered_laps)
-    DriverList=User_Event.TopXDrivers(int(top_nr_dri))
-    
-    
-    y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,DriverList,mode,sector)
+
+    Driverlist=User_Event.TopXDrivers(int(top_nr_dri))
+
+    y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,Driverlist,mode,sector)
     
     TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
     y_model_deg=Eq_Model(np.array(laps),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
     print(y_model_deg)
-    dff = pd.DataFrame(data=[{'Coeff A':round(TyreModelCoeffs[0],3),'Coeff B':round(TyreModelCoeffs[1],3),'Coeff C':round(TyreModelCoeffs[2],3),'Session':str(User_Event.Name),'Compound':str(comp),'TopDriversX':str(top_nr_dri),'Filtered Laps':",".join([str(items) for items in laps])}]) # replace with your own data processing code
-    new_table_figure = ff.create_table(dff)
-    a=TyreModelCoeffs
-   
+    #new_table_figure = updatetabledata(TyreModelCoeffs, actual_comp, comp, laps, top_nr_dri)
+
+
     if str.lower(track_sector) == 'full lap':
         sector="laptime_fuel_corrected"
     elif str.lower(track_sector) == 's1':
@@ -581,78 +557,45 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
         sector = "s2"
     elif str.lower(track_sector) == 's3':
         sector = "s3"
-    driverlist=DriverList
+
     if str.lower(compound) =='prime':
-       
+        actual_comp = User_Event.PrimeCompound
         laptimes_df=User_Event.LapTimesDf_Prime
-        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
+        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(Driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby(['driver','Stint'])
-        
+
     elif str.lower(compound) == 'option':
-       
+        actual_comp = User_Event.OptionCompound
         laptimes_df=User_Event.LapTimesDf_Option
-        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
+        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(Driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby(['driver','Stint'])
-        
+
     else:
-       
+        actual_comp = User_Event.PrimeCompound
         laptimes_df=User_Event.LapTimesDf
-        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(driverlist)]
+        LapTimesDf_SelectedDrivers=laptimes_df[laptimes_df['driver'].isin(Driverlist)]
         GroupByDriver=LapTimesDf_SelectedDrivers.groupby(['driver','Stint'])
-    
-    trace_drivers=[] #list initialization to plot data from drivers
-    
-    for drivers in driverlist:
-            for stint in laptimes_df['Stint'][laptimes_df['driver']==drivers].unique().tolist():
-                if str.lower(y_values_mode) == 'deg':
-                    y_values=GroupByDriver.get_group((drivers,stint))[sector][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]-GroupByDriver.get_group((drivers,stint))[sector][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)].min()
-#                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group(drivers)['StintLaps'].isin(laps)]
-                    trace_drivers.append(go.Scatter(
-                                                    x=laps,
-                                                    y=y_values,
-                                                    mode='lines+markers',
-                                                    name=drivers + "_" + str(stint)
-                
-                
-            ))
-                else:
-                    y_values=GroupByDriver.get_group((drivers,stint))[sector][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]
-#                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]
-                    trace_drivers.append(go.Scatter(
-                                                    x=laps,
-                                                    y=y_values,
-                                                    mode='lines+markers',
-                                                    name=drivers + "_" + str(stint)
-                
-                
-            ))
-                
-            
-                
-                
-                
+
+    trace_drivers = GetDriversData(GroupByDriver, Driverlist, laps, laptimes_df, sector, y_values_mode)
+
     trace_median=go.Scatter(
             x=laps,
             y=y_median_deg,
             mode='lines+markers',
-            name='Median of all drivers'
-            
-            
-        )
+            name='Median')
+
     trace_model=go.Scatter(
             x=laps,
             y=y_model_deg,
             mode='lines+markers',
-            name='Math Model Fit'            
-            
-        )
+            name='Tyre Model Fit')
     
     layout=go.Layout(
             xaxis={'title': 'Laps'},
             yaxis={'title': 'Absolute Deg'},
             margin={'l': 40, 'b': 40, 't': 10, 'r': 0},
-            hovermode='closest'
-        )
+            hovermode='closest')
+
     data=[]
     if ('drivers' in plot_options) and ('median' in plot_options) and ('model' in plot_options):    
         trace_drivers.append(trace_median)
@@ -675,18 +618,54 @@ def update_graph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_
         data = [trace_median]
     elif ('model' in plot_options):
         data = [trace_model]
+
     conn.close()
     User_Event.db.dispose()
     
-    return dict(data=data,layout=layout),new_table_figure
+    return dict(data=data,layout=layout)#,new_table_figure
+
+def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_values_mode):
+    trace_drivers = []  # list initialization to plot data from drivers
+    for drivers in driverlist:
+        for stint in laptimes_df['Stint'][laptimes_df['driver'] == drivers].unique().tolist():
+            if str.lower(y_values_mode) == 'deg':
+                y_values = GroupByDriver.get_group((drivers, stint))[sector][
+                               GroupByDriver.get_group((drivers, stint))['StintLaps'].isin(laps)] - \
+                           GroupByDriver.get_group((drivers, stint))[sector][
+                               GroupByDriver.get_group((drivers, stint))['StintLaps'].isin(laps)].min()
+                #                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group(drivers)['StintLaps'].isin(laps)]
+                trace_drivers.append(go.Scatter(
+                    x=laps,
+                    y=y_values,
+                    mode='lines+markers',
+                    name=drivers + "_" + str(stint)))
+            else:
+                y_values = GroupByDriver.get_group((drivers, stint))[sector][
+                    GroupByDriver.get_group((drivers, stint))['StintLaps'].isin(laps)]
+                #                    x_values=GroupByDriver.get_group((drivers,stint))['StintLaps'][GroupByDriver.get_group((drivers,stint))['StintLaps'].isin(laps)]
+                trace_drivers.append(go.Scatter(
+                    x=laps,
+                    y=y_values,
+                    mode='lines+markers',
+                    name=drivers + "_" + str(stint)))
+
+    return trace_drivers
+
+@app.callback(Output('coeffs table', 'figure'), [Input('feature-graphic','figure')])
+def updatetabledata(figure):
+    dff = pd.DataFrame(data=[{'Coeff A': round(TyreModelCoeffs[0], 3), 'Coeff B': round(TyreModelCoeffs[1], 3),
+                              'Coeff C': round(TyreModelCoeffs[2], 3), 'Session': str(User_Event.Name),
+                              'Prime/Option': comp, 'Compound': actual_comp, 'TopDriversX': str(top_nr_dri),
+                              'Filtered Laps': ",".join(
+                                  [str(items) for items in laps])}])  # replace with your own data processing code
+    new_table_figure = ff.create_table(dff)
+    return new_table_figure
 
 @app.callback(Output('graph-container', 'style'), [Input('compound options dropdown','value')])
 def hide_graph(my_input):
     if my_input:
         return dict(width='100%',display='block')
     return dict(display='none')
-    
-    
 
 #####################MAIN PROGRAM##############################################                
 
@@ -695,18 +674,6 @@ if __name__ == "__main__":
     app.run_server(debug=False) 
 
 ###############################################################################
-
-
-
-
-
-
-
-
-
-
-
-
 
 ####################EXTRA INFO#################################################
 
