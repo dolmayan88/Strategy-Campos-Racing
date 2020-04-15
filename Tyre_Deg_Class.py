@@ -78,6 +78,7 @@ class Event():
         self.NrofLaps = int(self.LapTimesDf.lap.max())
         # self.DriverStartPosition =self.TyreAllocDf[["driver","startpos"] if len(Naming_convention)>7 else ''
         self.DriverEndPosition = self.LapTimesDf[['driver','position']][self.LapTimesDf.lap==self.NrofLaps]
+        self.DriverFinishLine= self.LapTimesDf['driver'][self.LapTimesDf.lap==self.NrofLaps]
 
         #Now this is valid live or not live
         
@@ -434,10 +435,11 @@ app.layout = html.Div(children=[
                                                         ),
                                         ),
                             html.Div([
-                                    'Select which laps to display on the plot. Median will be calculated only for these laps selected',
+                                    'Select which laps to display on the plot. Median will be calculated only '
+                                    'for these laps selected',
                                     dcc.Dropdown(
                                             id='laps filter',
-                                            multi=True                                            
+                                            multi=True
                                             )],
                                     style = dict(
                                                         width = '80%',
@@ -507,27 +509,35 @@ def eventclasscreation(button_click,event_naming_convention):
         conn.close()
         User_Event.db.dispose()
 
+
 @app.callback([Output('laps filter','options'),
                Output('laps filter','value'),
                Output('drivers filter','options'),
                Output('drivers filter','value')],
               [Input('compound options dropdown','value'),
-               Input('top drivers input','value')]
+               Input('top drivers input','value'),]
               )
 def updatelapfilter(comp,top_nr_dri):
-    driveroptions=[dict(label=str(i),value=i) for i in User_Event.TopXDrivers(int(top_nr_dri))]
-    drivervalue=[d['value'] for d in driveroptions]
+
+    driveroptions = [dict(label=str(i), value=str(i)) for i in User_Event.TopXDrivers(int(top_nr_dri))]
+    drivervalue = [d['value'] for d in driveroptions]
+
     if str.lower(comp) =='prime':
-        maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
+
+        maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(drivervalue)].max()
+        print('entrando en max laps!!!')
+        print(maxlaps)
         lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
         lapsvalue=[d['value'] for d in lapsoptions]
+
     elif str.lower(comp) =='option':
-        maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
+
+        maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(drivervalue)].max()
         lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
         lapsvalue=[d['value'] for d in lapsoptions]
 
     return lapsoptions,lapsvalue,driveroptions,drivervalue
-     
+
 @app.callback(Output('feature-graphic','figure'),
                [Input('plot options dropdown','value'),
                 Input('compound options dropdown','value'),
@@ -544,10 +554,12 @@ def updategraph(plot_options,compound,driverfilterlist,track_sector,y_values_mod
 
     laps=sorted(filtered_laps)
     sector = GetSectorMode(track_sector)
-    #Driverlist=User_Event.TopXDrivers(int(top_drivers))  #TODO: Now driverlist is top drivers. Change it to drivers filter list
+    #Driverlist=User_Event.TopXDrivers(int(top_drivers))
     Driverlist = driverfilterlist
     #Get median values
     y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,Driverlist,y_values_mode,sector)
+    print(y_median_deg)
+    print(len(y_median_deg))
 
     #Get Model Values
     TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
