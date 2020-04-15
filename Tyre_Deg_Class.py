@@ -458,10 +458,23 @@ app.layout = html.Div(children=[
                             
                                       # SPACER
                             
-                            html.P(), 
-                            
-                                                    
-                                    # GRAPH DIV ROW  
+                            html.P(),
+
+                            html.Div([
+                                    'Select which drivers to display on the plot. Median will be calculated only for these laps selected',
+                                    dcc.Dropdown(
+                                            id='drivers filter',
+                                            multi=True
+                                            )],
+                                    style = dict(
+                                                        width = '100%',
+                                                        display = 'table-cell'
+                                                        )
+                                            ),
+
+                            html.P(),
+
+                            # GRAPH DIV ROW
                                                     
                             html.Div([
                                 dcc.Graph(id='feature-graphic')],
@@ -495,41 +508,44 @@ def eventclasscreation(button_click,event_naming_convention):
         User_Event.db.dispose()
 
 @app.callback([Output('laps filter','options'),
-               Output('laps filter','value')],
+               Output('laps filter','value'),
+               Output('drivers filter','options'),
+               Output('drivers filter','value')],
               [Input('compound options dropdown','value'),
                Input('top drivers input','value')]
               )
 def updatelapfilter(comp,top_nr_dri):
-    
+    driveroptions=[dict(label=str(i),value=i) for i in User_Event.TopXDrivers(int(top_nr_dri))]
+    drivervalue=[d['value'] for d in driveroptions]
     if str.lower(comp) =='prime':
         maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
-        options=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
-        value=[d['value'] for d in options]
+        lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
+        lapsvalue=[d['value'] for d in lapsoptions]
     elif str.lower(comp) =='option':
         maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(User_Event.TopXDrivers(int(top_nr_dri)))].max()
-        options=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
-        value=[d['value'] for d in options]
+        lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
+        lapsvalue=[d['value'] for d in lapsoptions]
 
-    return options,value        
+    return lapsoptions,lapsvalue,driveroptions,drivervalue
      
 @app.callback(Output('feature-graphic','figure'),
                [Input('plot options dropdown','value'),
                 Input('compound options dropdown','value'),
-                Input('top drivers input','value'),
+                Input('drivers filter','value'),
                 Input('sector options dropdown','value'),
                 Input('mode options dropdown','value'),
                 Input('refresh button','n_clicks'),
                 Input('laps filter','value')
                 ])
 
-def updategraph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_clicks,filtered_laps):
+def updategraph(plot_options,compound,driverfilterlist,track_sector,y_values_mode,n_clicks,filtered_laps):
     
     global laps, TyreModelCoeffs, actual_comp #Global Variables to update Table
 
     laps=sorted(filtered_laps)
     sector = GetSectorMode(track_sector)
-    Driverlist=User_Event.TopXDrivers(int(top_drivers))
-
+    #Driverlist=User_Event.TopXDrivers(int(top_drivers))  #TODO: Now driverlist is top drivers. Change it to drivers filter list
+    Driverlist = driverfilterlist
     #Get median values
     y_median_deg=User_Event.GetLaptimesOrDegMedianByDriver(laps,compound,Driverlist,y_values_mode,sector)
 
@@ -548,12 +564,14 @@ def updategraph(plot_options,compound,top_drivers,track_sector,y_values_mode,n_c
             x=laps,
             y=y_median_deg,
             mode='lines+markers',
+            line=dict(color='red', width=8, dash='dash'),
             name='Median')
 
     trace_model=go.Scatter(
             x=laps,
             y=y_model_deg,
             mode='lines+markers',
+            line=dict(color='black', width=8, dash='dot'),
             name='Tyre Model Fit')
     
     layout=go.Layout(
