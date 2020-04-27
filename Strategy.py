@@ -29,15 +29,6 @@ class Tyre:
     def eq_model(self, lap, a, b, c):
         return a*lap+b*np.exp(c*lap) + self.delta_pace
 
-    def lapsdf(self, lapsinstint):
-        if type(lapsinstint) == int:
-            lapsinstint = [lapsinstint]
-        stintlap = []
-        for lapsstint in lapsinstint:
-            stintlap = stintlap + list(range(1, lapsstint + 1))
-        return pandas.DataFrame(data={'Lap': list(range(1, len(stintlap) + 1)),
-                                      'StintLap': stintlap})
-
     def lossdf(self, lapsinstint):
         df = self.lapsdf(lapsinstint)
         df['TyreLoss'] = df.apply(lambda lap: self.eq_model(lap['StintLap'], self.a, self.b, self.c), axis=1)
@@ -52,15 +43,9 @@ class Driver:
     def __init__(self, delta_pace=0, name=''):
         self.delta_pace = delta_pace
         self.name = name
-
-    def lapsdf(self, lapsinstint):
-        if type(lapsinstint) == int:
-            lapsinstint = [lapsinstint]
-        stintlap = []
-        for lapsstint in lapsinstint:
-            stintlap = stintlap + list(range(1, lapsstint + 1))
-        return pandas.DataFrame(data={'Lap': list(range(1, len(stintlap) + 1)),
-                                      'StintLap': stintlap})
+        self.max_time_loss = 0.5
+        self.starting_time_loss = 0
+        self.gap_at_timeloss0 = 1
 
     def lossdf(self, lapsinstint):
         df = self.lapsdf(lapsinstint)
@@ -70,21 +55,29 @@ class Driver:
     def loss_fun(self, lapsinstint):
         return {lap: self.delta_pace for lap in range(1, lapsinstint + 1)}
 
+    def traffic_loss_fun(self, gap):
+        if 0 < gap < self.gap_at_timeloss0:
+            return gap / self.gap_at_timeloss0 * (self.starting_time_loss - self.max_time_loss) + self.max_time_loss
+        else:
+            return 0
+
 
 class Stint:
 
-    def __init__(self, laps, tyre, driver, refpace, initialloss):
+    def __init__(self, laps, tyre, driver, refpace, initialloss, gaps):
         self.laps = laps
         self.tyre = tyre
         self.driver = driver
         self.refpace = refpace
         self.initialloss = initialloss
+        self.gaps = gaps
         self.laptimes = self.laptimes_fun()
 
     def laptimes_fun(self):
         tyreloss = self.tyre.loss_fun(self.laps)
         driverloss = self.driver.loss_fun(self.laps)
-        laptimes = {lap: tyreloss[lap] + driverloss[lap] + self.refpace for lap in range(1, self.laps + 1)}
+        laptimes = {lap: tyreloss[lap] + driverloss[lap] + self.refpace + self.driver.traffic_loss_fun(self.gaps[lap-1])
+                    for lap in range(1, self.laps + 1)}
         laptimes[1] = laptimes[1] + self.initialloss
         return laptimes
 
@@ -98,21 +91,20 @@ class Event:
         self.pitloss_vsc = 25
         self.pitloss_sc = 20
         self.gridloss = 0.1
-        self.startingposition = {'': 1}
+        self.startingposition = 1#{'': 1}
 
 
 class DriverStrategy:
 
-    def __init__(self, lapslist, tyrelist, driver, event, name='', sclist=[], vsclist=[]):
+    def __init__(self, lapslist, tyrelist, driver, event, gaps, name=''):
         self.name = name
         self.lapslist = lapslist
         self.tyrelist = tyrelist
         self.driver = driver
         self.refpace = event.refpace
         self.pitloss = event.pitloss
-        self.initialloss = event.gridloss*event.startingposition[driver.name]
-        self.sclist = sclist
-        self.vsclist = vsclist
+        self.initialloss = event.gridloss*event.startingposition#[driver.name]
+        self.gaps = gaps
         self.stints = self.createstints()
         self.laptimes = self.laptimes_fun()
         self.data = self.data_fun()
@@ -129,7 +121,8 @@ class DriverStrategy:
                 initloss = self.initialloss
             else:
                 initloss = self.pitloss
-            stintinstance = Stint(stintlaps, self.tyrelist[stintnumber-1], self.driver, self.refpace, initloss)
+            stintinstance = Stint(stintlaps, self.tyrelist[stintnumber-1], self.driver, self.refpace, initloss,
+                                  self.gaps[stintnumber-1])
             stints[stintnumber] = stintinstance
         return stints
 
@@ -173,13 +166,16 @@ class Strategy:
         self.undercut = self.undercut_fun(20)
         self.compounddeltatime = self.compounddeltatime_fun(20)
         self.raceplot = self.raceplot_fun()
+        self.laptimes_df = self.laptimes_df_fun()
+        self.gaps_df = self.gaps_df_fun()
+        self.positions_df = self.laptimes_df.cumsum().rank(axis=1, method='dense')
+        self.gapsahead_df = self.gapsahead_df_fun()
 
-    def raceplot_fun(self, overtaking=False):
+    def raceplot_fun(self):
         raceplot = pandas.DataFrame()
-        if not overtaking:
-            for driver_strategy in self.driver_strategylist:
-                raceplot[driver_strategy.name] = \
-                    driver_strategy.data['lap'] * self.quickestavg - driver_strategy.data['cumulative_time']
+        for driver_strategy in self.driver_strategylist:
+            raceplot[driver_strategy.name] = \
+                driver_strategy.data['lap'] * self.quickestavg - driver_strategy.data['cumulative_time']
         return raceplot
 
     def undercut_fun(self, laps):
@@ -213,3 +209,38 @@ class Strategy:
                 compounddeltatime[tyre_pair[0].name + ' vs ' + tyre_pair[1].name] = \
                     compoundloss[tyre_pair[1].name] - compoundloss[tyre_pair[0].name]
         return compounddeltatime
+
+    def laptimes_df_fun(self):
+        laptimes_df = pandas.DataFrame()
+        for driver_strategy in self.driver_strategylist:
+            laptimes_df[driver_strategy.name] = pandas.Series(driver_strategy.laptimes,
+                                                              index=driver_strategy.laptimes.keys())
+        return laptimes_df
+
+    def gaps_df_fun(self):
+        cumulative_df = self.laptimes_df.cumsum()
+        gaps_df = cumulative_df.apply(lambda row: row-cumulative_df.min(axis=1))
+        return gaps_df
+
+    def gapsahead_df_fun(self):
+        racelaps = len(self.laptimes_df.index)
+        data = []
+        for lap in range(1, racelaps + 1):
+            data.append(list(self.laptimes_df.cumsum().sort_values(lap, axis=1).columns))
+        data = np.array(data)
+        driver_byposition = pandas.DataFrame(data=data,
+                                             columns=range(1, len(self.laptimes_df.columns) + 1),
+                                             index=range(1, racelaps + 1))
+        gapsahead_df = pandas.DataFrame()
+        for strategy in self.gaps_df.columns:
+            temp = []
+            for lap in self.gaps_df.index:
+                if self.gaps_df[strategy][lap] == 0:
+                    temp.append(0)
+                else:
+                    myposition = self.positions_df[strategy][lap]
+                    mycompetitor = driver_byposition[myposition-1][lap]
+                    temp.append(self.gaps_df[strategy][lap]-self.gaps_df[mycompetitor][lap])
+            gapsahead_df[strategy] = temp
+        return gapsahead_df
+
