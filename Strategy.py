@@ -16,6 +16,14 @@ import itertools
 # from sqlalchemy import create_engine
 # import os
 
+def listintosublist(list, sublist):
+    newlist=[]
+    for lensublist in sublist:
+        newsublist=[]
+        for i in range(0,lensublist):
+            newsublist.append(list.pop(0))
+        newlist.append(newsublist)
+    return newlist
 
 class Tyre:
 
@@ -28,11 +36,6 @@ class Tyre:
 
     def eq_model(self, lap, a, b, c):
         return a*lap+b*np.exp(c*lap) + self.delta_pace
-
-    def lossdf(self, lapsinstint):
-        df = self.lapsdf(lapsinstint)
-        df['TyreLoss'] = df.apply(lambda lap: self.eq_model(lap['StintLap'], self.a, self.b, self.c), axis=1)
-        return df
 
     def loss_fun(self, lapsinstint):
         return {lap: self.eq_model(lap, self.a, self.b, self.c) for lap in range(1, lapsinstint + 1)}
@@ -96,7 +99,7 @@ class Event:
 
 class DriverStrategy:
 
-    def __init__(self, lapslist, tyrelist, driver, event, gaps, name=''):
+    def __init__(self, lapslist, tyrelist, driver, event, name='', gaps=False):
         self.name = name
         self.lapslist = lapslist
         self.tyrelist = tyrelist
@@ -104,7 +107,10 @@ class DriverStrategy:
         self.refpace = event.refpace
         self.pitloss = event.pitloss
         self.initialloss = event.gridloss*event.startingposition#[driver.name]
-        self.gaps = gaps
+        if gaps:
+            self.gaps = gaps
+        else:
+            self.gaps = [[2]*laps for laps in lapslist]
         self.stints = self.createstints()
         self.laptimes = self.laptimes_fun()
         self.data = self.data_fun()
@@ -244,3 +250,38 @@ class Strategy:
             gapsahead_df[strategy] = temp
         return gapsahead_df
 
+
+class Race:
+
+    def __init__(self, event, strategylist, maxiterations, tolerance):
+        self.event = event
+        self.maxiterations = maxiterations
+        self.tolerance = tolerance
+        self.strategies, self.strategy = self.calcrace_fun(strategylist)
+
+    def calcrace_fun(self, strategylist):
+        delta = 10 ^ 1000
+        i = 0
+        gaps = {driverstrategy.name: [[2]*laps for laps in driverstrategy.lapslist] for driverstrategy in strategylist}
+        strategies = {driverstrategy.name: driverstrategy for driverstrategy in strategylist}
+        nameslist = list(strategies.keys())
+        strategy = {}
+        while delta > self.tolerance or i < self.maxiterations:
+            i = i + 1
+            prevgaps = gaps
+            strategies = {name: DriverStrategy(strategies[name].lapslist,
+                                               strategies[name].tyrelist,
+                                               strategies[name].driver,
+                                               self.event,
+                                               name=name,
+                                               gaps=gaps[name])
+                          for name in nameslist}
+            strategy = Strategy(list(strategies.values()))
+            gaps = {name: listintosublist(list(strategy.gapsahead_df[name].values),
+                                          strategies[name].lapslist
+                                          ) for name in nameslist}
+            delta = sum([sum([abs(x - y)
+                              for x, y in zip([item for sublist in prevgaps[name] for item in sublist],list(strategy.gapsahead_df[name].values))
+                              ])
+                         for name in nameslist])
+        return strategies, strategy
