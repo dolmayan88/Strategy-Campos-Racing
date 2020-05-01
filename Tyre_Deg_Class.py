@@ -457,6 +457,8 @@ app.layout = html.Div(children=[
                             
                                       # TRICK TO MAKE CALLBACKS WITHOUT AN OUTPUT
                             html.Div(id='hidden div', style=dict(display = 'none')),
+
+                            html.Div(id='hidden div 2', style=dict(display = 'none')),
                             
                                       # SPACER
                             
@@ -494,7 +496,14 @@ app.layout = html.Div(children=[
                                              
                             #html.Div([],style=dict(width='45%',display='table-cell'))
                             
-                            ],style=dict(display='table',width='100%'))
+                            ],style=dict(display='table',width='100%')),
+
+                            html.Button(
+                                children='Send Model to DDBB',
+                                id='DDBB Model button',
+                                type='submit'
+                                #                                    n_clicks = 0
+                            )
                             ])
 
 @app.callback(Output('hidden div','children'),
@@ -693,9 +702,10 @@ def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_value
                                                  Input('compound options dropdown','value'),
                                                  Input('top drivers input','value')])
 def updatetabledata(figure,comp,top_nr_dri):
-    dff = pd.DataFrame(data=[{'Coeff A': round(TyreModelCoeffs[0], 3), 'Coeff B': round(TyreModelCoeffs[1], 3),
-                              'Coeff C': round(TyreModelCoeffs[2], 3), 'Session': str(User_Event.Name),
-                              'Prime/Option': comp, 'Compound': actual_comp, 'TopDriversX': str(top_nr_dri),
+    global dff
+    dff = pd.DataFrame(data=[{'A': round(TyreModelCoeffs[0], 3), 'B': round(TyreModelCoeffs[1], 3),
+                              'C': round(TyreModelCoeffs[2], 3), 'Session': str(User_Event.Name),
+                              'PO': comp, 'Compound': actual_comp, 'TopDriversX': str(top_nr_dri),
                               'Filtered Laps': ",".join(
                                   [str(items) for items in laps])}])  # replace with your own data processing code
     new_table_figure = ff.create_table(dff)
@@ -707,11 +717,22 @@ def hide_graph(my_input):
         return dict(width='100%',display='block')
     return dict(display='none')
 
+@app.callback(Output('hidden div 2', 'children'), [Input('DDBB Model button','n_clicks')])
+def send_model_to_DDBB(my_input):
+    conn = User_Event.db.connect()
+
+    dff.to_sql('TyreModels', con=conn, if_exists='append')
+    conn.close()
+    User_Event.db.dispose()
+    return dict(display='none')
+
 #####################MAIN PROGRAM##############################################                
 
 if __name__ == "__main__":
-    
-    app.run_server(debug=False) 
+
+    app.run_server(debug=False)
+
+event=Event("F2_19R01BAH_R1",pdftiming=True)
 
 ###############################################################################
 
