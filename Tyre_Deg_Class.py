@@ -55,9 +55,9 @@ class Event():
         self.Track = self.Name.split("_")[1][5:8] if len(self.Name)>7 else ''
         self.Session = self.Name.split("_")[2] if len(self.Name)>7 else ''
         
-        self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
+        # self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
         #One Single Access to DB
-        self.CalendarDf=self.getTotalTable("Calendar","Session_id",self.Name)
+        self.CalendarDf=Event.getTotalTable("Calendar","Session_id",self.Name)
         self.TyreAllocDf=self.getTotalTable("TyreAlloc","Session",self.Name)
         
         if live:
@@ -99,20 +99,24 @@ class Event():
         self.MaxNrofLaps_Option = self.LapTimesDf_Option['StintLaps'].max()
         self.DriverList_Prime = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.PrimeCompound].unique().tolist()
         self.DriverList_Option = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.OptionCompound].unique().tolist()
+    @staticmethod
+    def getPartialTable(DDBBColumn,DDBBTable,DDBBColumnFilter=None,DDBBValueFilter=None):
 
-    def getPartialTable(self,DDBBColumn,DDBBTable,DDBBColumnFilter=None,DDBBValueFilter=None):
-        
+        db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
+        conn=db.connect()
         if (DDBBColumnFilter==None) and (DDBBValueFilter==None):
             if isinstance(DDBBColumn,list):
             
-                DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "'",self.db)
+                DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "'",db)
 
             if (str.lower(DDBBColumn) == 'all') or (str.lower(DDBBColumn) == '*'):
-                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "'",self.db)
+                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "`",db)
                 
             else:
-                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable +"'",self.db)
-            
+                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable +"'",db)
+
+            conn.close()
+            db.dispose()
             if len(DDBB_df)>0:
                 return DDBB_df
             else:
@@ -120,25 +124,31 @@ class Event():
         else:
             if isinstance(DDBBColumn,list):
             
-                DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+                DDBB_df = pd.read_sql_query("SELECT " + ",".join(DDBBColumn) + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",db)
 
             if (str.lower(DDBBColumn) == 'all') or (str.lower(DDBBColumn) == '*'):
-                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+                DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",db)
                 
             else:
-                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
-            
+                DDBB_df = pd.read_sql_query("SELECT " + DDBBColumn + " FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",db)
+            conn.close()
+            db.dispose()
             if len(DDBB_df)>0:
                 return DDBB_df
             else:
                 print("No hay ningún dato en la BBDD perteneciente a esos filtros.")
-
-    def getTotalTable(self,DDBBTable,DDBBColumnFilter,DDBBValueFilter):
-    
+    @staticmethod
+    def getTotalTable(DDBBTable,DDBBColumnFilter,DDBBValueFilter):
+        db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
+        conn=db.connect()
         if (DDBBColumnFilter==None) and (DDBBValueFilter==None):
-            DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "'",self.db)
+            DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "`",db)
+
         else:
-            DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",self.db)
+            DDBB_df = pd.read_sql_query("SELECT * FROM `" + DDBBTable + "` WHERE `" + DDBBColumnFilter + "` LIKE '" + DDBBValueFilter +"'",db)
+
+        conn.close()
+        db.dispose()
 
         if len(DDBB_df)>0:
             return DDBB_df
