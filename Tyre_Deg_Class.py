@@ -55,7 +55,7 @@ class Event():
         self.Track = self.Name.split("_")[1][5:8] if len(self.Name)>7 else ''
         self.Session = self.Name.split("_")[2] if len(self.Name)>7 else ''
         
-        # self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
+        self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
         #One Single Access to DB
         self.CalendarDf=Event.getTotalTable("Calendar","Session_id",self.Name)
         self.TyreAllocDf=self.getTotalTable("TyreAlloc","Session",self.Name)
@@ -259,7 +259,7 @@ class Event():
         return top_driver_list
                     
     def GetLaptimesOrDegMedianByDriver(self,laps_filter,compound,driverlist,y_values_mode,sector):
-        
+        global pace_tyre
         """
        Inputs:
            driverlist -> Here we can enter the filter for the drivers. 
@@ -287,6 +287,7 @@ class Event():
                 y_median_laptime_values=[laptimes_df[sector][laptimes_df['StintLaps']==lap].median() for lap in laps_filter]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
 #                x_median_values=list(range(1,laps+1))
+                pace_tyre=min(y_median_laptime_values)
                 if str.lower(y_values_mode) =='lap':
                     return y_median_laptime_values
                 else:
@@ -300,6 +301,7 @@ class Event():
 #                laps = LapTimesDf_SelectedDrivers['StintLaps'].max()
                 y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][(LapTimesDf_SelectedDrivers['StintLaps']==lap) & (LapTimesDf_SelectedDrivers['InPit']==0)].median() for lap in laps_filter]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
+                pace_tyre = min(y_median_laptime_values)
 #                x_median_values=list(range(1,laps+1))
                 if str.lower(y_values_mode) =='lap':
                     return y_median_laptime_values
@@ -524,9 +526,9 @@ def eventclasscreation(button_click,event_naming_convention):
     global User_Event,conn
     if button_click>0:
         User_Event=Event(Naming_convention=event_naming_convention,pdftiming=True)
-        conn = User_Event.db.connect()        
-        conn.close()
-        User_Event.db.dispose()
+        # conn = User_Event.db.connect()
+        # conn.close()
+        # User_Event.db.dispose()
 
 
 @app.callback([Output('laps filter','options'),
@@ -634,8 +636,8 @@ def updategraph(plot_options,compound,driverfilterlist,track_sector,y_values_mod
     elif ('model' in plot_options):
         data = [trace_model]
 
-    conn.close()
-    User_Event.db.dispose()
+    # conn.close()
+    # User_Event.db.dispose()
     
     return dict(data=data,layout=layout)#,new_table_figure
 
@@ -714,7 +716,7 @@ def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_value
 def updatetabledata(figure,comp,top_nr_dri):
     global dff
     dff = pd.DataFrame(data=[{'A': round(TyreModelCoeffs[0], 3), 'B': round(TyreModelCoeffs[1], 3),
-                              'C': round(TyreModelCoeffs[2], 3), 'Session': str(User_Event.Name),
+                              'C': round(TyreModelCoeffs[2], 3), 'TyrePace': pace_tyre,'Session': str(User_Event.Name),
                               'PO': comp, 'Compound': actual_comp, 'TopDriversX': str(top_nr_dri),
                               'Filtered Laps': ",".join(
                                   [str(items) for items in laps])}])  # replace with your own data processing code
@@ -731,7 +733,7 @@ def hide_graph(my_input):
 def send_model_to_DDBB(my_input):
     conn = User_Event.db.connect()
 
-    dff.to_sql('TyreModels', con=conn, if_exists='append')
+    dff.to_sql('TyreModels', con=conn, if_exists='append',index=False)
     conn.close()
     User_Event.db.dispose()
     return dict(display='none')
