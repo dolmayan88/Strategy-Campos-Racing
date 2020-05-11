@@ -289,29 +289,110 @@ class Race:
 engine = create_engine(
     'mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/'
     'ss0isbty55bwe8te')
+eventoptions = [{'label': item, 'value': item} for item in sorted(list(
+    pandas.read_sql_query("SELECT DISTINCT session_id FROM `Calendar` WHERE session='R1' or session='R2'",
+                          engine).session_id))]
+tyreoptions = []
+
+USERNAMES = [['Alvaro', 'AlvaroFormoso789'],
+             ['Miguel', 'MiguelFabra159'],
+             ['Josete', 'IlCapo528'],
+             ['David', 'ArreuCambero936'],
+             ['Adrian', 'Adrivolador102'],
+             ['Jorge', 'Lamoraldelalcoiano520'],
+             ['Mario', 'Cambi789'],
+             ['Andrea', 'Rochetto741'],
+             # ['Jan','JanSumann123'],
+             # ['Dani','DaniRincon456'],
+             ]
+
+app = dash.Dash(__name__)
+auth = dash_auth.BasicAuth(app, USERNAMES)
+server = app.server
+app.layout = html.Div([html.H2(id='title',
+                               children='Campos Engineering',
+                               style={'text-align': 'center',
+                                      'fontSize': 20}),
+                       html.Div([html.Div(dcc.Dropdown(id='eventselector',
+                                                       multi=False,
+                                                       value='',
+                                                       options=eventoptions,
+                                                       placeholder="Select Event",
+                                                       style={'height': '30px'}),
+                                          style={'display': 'inline-block',
+                                                 'width': '30%',
+                                                 'height': '30px',
+                                                 'border-style': 'none'}),
+                                 html.Div(dcc.Dropdown(id='tyreselector',
+                                                       multi=True,
+                                                       value='',
+                                                       options=tyreoptions,
+                                                       placeholder="Select Tyre",
+                                                       style={'height': '30px'}),
+                                          style={'display': 'inline-block',
+                                                 'width': '30%',
+                                                 'height': '30px',
+                                                 'border-style': 'none'}),
+                                 html.Div(dcc.Input(id='stopsselector',
+                                                    value=0,
+                                                    type='number',
+                                                    placeholder="maximum number of pit-stops",
+                                                    style={'font-size': '18px',
+                                                           'width': '100%',
+                                                           'height': '30px'}),
+                                          style={'display': 'inline-block',
+                                                 'width': '30%',
+                                                 'height': '30px',
+                                                 'vertical-align': 'top',
+                                                 'border-style': 'none'}),
+                                 daq.BooleanSwitch(id='overtakingswitch',
+                                                   on=False,
+                                                   label="Overtaking Model",
+                                                   labelPosition="left",
+                                                   color="rgb(0,255,0)",
+                                                   style={'fontsize': 20,
+                                                          'width': '9%',
+                                                          'float': 'right',
+                                                          'vertical-align': 'top'})
+                                 ]),
+                       html.Div('',
+                                style={'width': '100%',
+                                       'height': '15px'}),
+                       dcc.Tabs(id="tabs",
+                                children=[dcc.Tab(id='Tyres', value='tab-1', label='Tyres'),
+                                          dcc.Tab(id='Raceplot', value='tab-2', label='Raceplot'),
+                                          dcc.Tab(id='Results', value='tab-3', label='Results'),
+                                          ],
+                                value='tab-1')
+                       ])
 
 
 if __name__ == '__main__':
+    app.run_server(debug=False)
+
+
+@app.callback([Output('Tyres', 'children'),
+               Output('Raceplot', 'children'),
+               Output('Results', 'children')],
+              [Input('title', 'n_clicks'),
+               Input('tabs', 'value'),
+               Input('eventselector', 'value'),
+               Input('tyreselector', 'value'),
+               Input('stopsselector', 'value'),
+               Input('overtakingswitch', 'value')])
+def update_all(title, tabs, eventselector, tyreselector, stopsselector, overtakingswitch):
     event = Event()
     drivers = [Driver(0, 'xxx')]
-    tyres = [Tyre(0,0.2,0.5,0,'tyre1'),
-             Tyre(0.3,0.4,1,0,'tyre2')]
-    stopn = 2
+    tyres = []
+    for stops in range(0,int(stopsselector)+1):
+        tyres.append(list(itertools.combinations(tyreselector, stops + 1)))
 
-    tyreoptions = []
-    for stops in range(1, int(stopn) + 1):
-        tyreoptions = tyreoptions+[list(item) for item in (list(itertools.product(tyres, repeat = stops + 1)))]
-    laps = list([list(seq) for i in range(0,int(stopn+2)) for seq in itertools.permutations(list(range(1, event.laps + 1)), i) if sum(seq) == event.laps])
-    strategies = []
+    laps=list([list(seq) for i in range(0,int(stopsselector)) for seq in itertools.permutations(list(range(1, event.laps + 1)), i) if sum(seq) == event.laps])
     for driver in drivers:
         for lap in laps:
-            for tyre in tyreoptions:
-                if len(lap)==len(tyre):
-                    strategies = strategies + [DriverStrategy(lap, tyre, driver, event,
-                                                              name=event.name + ' ' + driver.name + ' ' + str(
-                                                                  [t.name for t in tyre]) + ' ' + str(lap))]
-    myrace = Race(event, strategies, 1, 0.5)
-    winnerstrategies_names = list(
-        myrace.strategy.positions_df[myrace.strategy.positions_df <= 10].loc[30].dropna().index)
-    winnerstrategies = [strat for strat in strategies if strat.name.isin(winnerstrategies_names)]
-    myrace_winners = Race(event, winnerstrategies, 1, len(winnerstrategies)*0.1)
+            for tyre in tyres:
+                strategies = strategies + [DriverStrategy(lap, tyre, driver, event,
+                                                          name=event.name + ' ' + driver.name + ' ' + str(
+                                                              [t.name for t in tyre]) + ' ' + str(lap))]
+
+    return [], [], []
