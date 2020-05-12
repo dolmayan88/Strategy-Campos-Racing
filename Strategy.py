@@ -280,7 +280,7 @@ class Race:
         strategies = {driverstrategy.name: driverstrategy for driverstrategy in strategylist}
         nameslist = list(strategies.keys())
         strategy = {}
-        while delta > self.tolerance or i < self.maxiterations:
+        while delta > self.tolerance and i < self.maxiterations:
             i = i + 1
             prevgaps = gaps
             strategies = {name: DriverStrategy(strategies[name].lapslist,
