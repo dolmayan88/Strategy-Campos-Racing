@@ -3,3 +3,4 @@ CSV Timing Checks/
 .idea/
 venv/
 Test Files/
+*.html

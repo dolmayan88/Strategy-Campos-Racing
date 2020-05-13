@@ -27,15 +27,16 @@ def plot_df(df, title='', xaxis='', yaxis=''):
 
 
 def plot_scenario(race, name):
-    fig = make_subplots(
-        rows=2, cols=2,
-        shared_xaxes=False,
-        vertical_spacing=0.06,
-        specs=[[{"type": "scatter"},
-                {"type": "table"}],
-               [{"type": "scatter"},
-                {"type": "scatter"}]],
-        subplot_titles=('RacePlot', 'Summary', 'Power of Undercut', 'Time Difference'))
+    fig = make_subplots(rows=3, cols=2,
+                        shared_xaxes=False,
+                        vertical_spacing=0.06,
+                        specs=[[{"type": "scatter"},
+                                {"type": "table"}],
+                               [{"type": "scatter"},
+                                {"type": "scatter"}],
+                               [{"type": "scatter", "colspan": 2},
+                                None]],
+                        subplot_titles=('RacePlot', 'Summary', 'Power of Undercut', 'Time Difference'))
     for column in race.strategy.raceplot.columns:
         fig.add_trace(go.Scatter(x=[x+1 for x in list(race.strategy.raceplot.index)],
                                  y=race.strategy.raceplot[column],
@@ -63,8 +64,19 @@ def plot_scenario(race, name):
                                  mode='lines',
                                  name=column),
                       row=2, col=2)
-    fig.update_layout({'yaxis2': {'range': [-5,5]},
-                       'yaxis3': {'range': [-10,10]}})
+    for tyre in race.strategy.tyres:
+        fig.add_trace(go.Scatter(x=list(range(1,31)),
+                                 y=list(tyre.loss_fun(30).values()),
+                                 mode='lines',
+                                 name=tyre.name),
+                      row=3, col=1)
+    fig.update_layout({'height':1350,
+                       'yaxis2': {'title': '<< Undercut - Overcut >>',
+                                  'range': [-5,5]},
+                       'yaxis3': {'title': 'delta time [s]',
+                                  'range': [-10,10]},
+                       'yaxis4': {'title': 'time loss [s]',
+                                  'range': [0,10]}})
     return fig
 
 
@@ -76,6 +88,11 @@ def listintosublist(primarylist, sublist):
             newsublist.append(primarylist.pop(0))
         newlist.append(newsublist)
     return newlist
+
+
+def flatten_list(mylist):
+    flatten = lambda l: [item for sublist in l for item in sublist]
+    return flatten(mylist)
 
 
 def intersection(lst1, lst2):
@@ -252,6 +269,7 @@ class Strategy:
         self.gaps_df = self.gaps_df_fun()
         self.positions_df = self.laptimes_df.cumsum().rank(axis=1, method='dense')
         self.gapsahead_df = self.gapsahead_df_fun()
+        self.tyres = list(set(flatten_list([x.tyrelist for x in driver_strategylist])))
 
     def raceplot_fun(self):
         raceplot = pandas.DataFrame()
@@ -378,13 +396,14 @@ engine = create_engine(
 
 
 if __name__ == '__main__':
-    print('Available events: ')
+    print('Loading available events...: ')
     [print(x) for x in intersection(list(get_table('Calendar').session_id.unique()),
                                     list(get_table('TyreModels').Session.unique()))]
     eventname = str(input('Input event name from the available events: '))
     stopn = int(input('Input max number of stops: '))
-    repeat_tyres = input('Can we repeat tyre compound (True/False): ').lower() in ['true', '1', 'y', 'yes', 'si', 's']
+    repeat_tyres = input('Can we repeat tyre compound: ').lower() in ['true', '1', 'y', 'yes', 'si', 's']
     first_stop_window = int(input('In which lap does the pit-window open? '))
+    print('Computing....')
 
 
     starttime = time.time()
@@ -440,8 +459,10 @@ if __name__ == '__main__':
     print('Best strategy with traffic: ' + str(list(
         myrace.strategy.positions_df[myrace_winners_traffic.strategy.positions_df <= 1].loc[event.laps].dropna().index)))
 
+    # plot_scenario(myrace,'All').write_html('All_cases.html')
     plot_scenario(myrace_winners,'Best').write_html('Best_cases.html')
     plot_scenario(myrace_winners_traffic,'Best with overtaking model').write_html('Best_cases_Overtaking.html')
+    # webbrowser.open('All_cases.html')
     webbrowser.open('Best_cases.html')
     webbrowser.open('Best_cases_Overtaking.html')
     print('total elapsed time: ' + str(time.time()-starttime))
