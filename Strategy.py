@@ -459,7 +459,7 @@ if __name__ == '__main__':
     print('Best strategy with traffic: ' + str(list(
         myrace.strategy.positions_df[myrace_winners_traffic.strategy.positions_df <= 1].loc[event.laps].dropna().index)))
 
-    # plot_scenario(myrace,'All').write_html('All_cases.html')
+    plot_scenario(myrace,'All').write_html('All_cases.html')
     plot_scenario(myrace_winners,'Best').write_html('Best_cases.html')
     plot_scenario(myrace_winners_traffic,'Best with overtaking model').write_html('Best_cases_Overtaking.html')
     # webbrowser.open('All_cases.html')
