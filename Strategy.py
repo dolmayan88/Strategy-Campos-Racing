@@ -129,9 +129,10 @@ class Tyre:
 
 class Driver:
 
-    def __init__(self, delta_pace=0, name=''):
+    def __init__(self, delta_pace=0, name='', startingposition=0):
         self.delta_pace = delta_pace
         self.name = name
+        self.startingposition = startingposition
         self.max_time_loss = 0.5
         self.starting_time_loss = 0
         self.gap_at_timeloss0 = 1
@@ -175,8 +176,8 @@ class Event:
         self.pitloss = float(self.calendar().pit_loss.mean())
         self.pitloss_vsc = float(self.calendar().pit_loss_vsc.mean())
         self.pitloss_sc = float(self.calendar().pit_loss_vsc.mean())
-        self.gridloss = 0.1
-        self.startingposition = 1  # {'': 1}
+        self.gridloss = float(self.calendar().grid_loss.mean())
+        self.fuel_penalty = float(self.calendar().fuel_penalty.mean())
         self.tyres = list(self.tyremodels().tyre)
 
     def calendar(self):
@@ -199,7 +200,8 @@ class DriverStrategy:
         self.driver = driver
         self.refpace = event.refpace
         self.pitloss = event.pitloss
-        self.initialloss = event.gridloss*event.startingposition  # [driver.name]
+        self.initialloss = event.gridloss*driver.startingposition
+        self.fuel_penalty = event.fuel_penalty
         if gaps:
             self.gaps = gaps
         else:
@@ -229,6 +231,8 @@ class DriverStrategy:
         laptimes_list = []
         for stint in self.stints.values():
             laptimes_list = laptimes_list + list(stint.laptimes.values())
+        for lap in range(0, len(laptimes_list)):
+            laptimes_list[lap] = laptimes_list[lap]-self.fuel_penalty*lap
         lap = list(range(1, len(laptimes_list) + 1))
         return dict(zip(lap, laptimes_list))
 
