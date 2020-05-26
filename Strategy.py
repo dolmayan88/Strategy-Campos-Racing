@@ -12,6 +12,7 @@ from plotly.subplots import make_subplots
 from sqlalchemy import create_engine
 # import os
 import random
+import progressbar
 
 
 def plot_df(df, title='', xaxis='', yaxis=''):
@@ -39,22 +40,14 @@ def boxplot_df(df, xcolumn, ycolumn, title='', xaxis='', yaxis=''):
 
 
 def plot_scenario(race, name):
-    fig = make_subplots(rows=3, cols=2,
+    fig = make_subplots(rows=2, cols=2,
                         shared_xaxes=False,
                         vertical_spacing=0.06,
                         specs=[[{"type": "scatter"},
                                 {"type": "table"}],
                                [{"type": "scatter"},
-                                {"type": "scatter"}],
-                               [{"type": "scatter", "colspan": 2},
-                                None]],
-                        subplot_titles=('RacePlot', 'Summary', 'Power of Undercut', 'Time Difference'))
-    for column in race.strategy.raceplot.columns:
-        fig.add_trace(go.Scatter(x=[x+1 for x in list(race.strategy.raceplot.index)],
-                                 y=race.strategy.raceplot[column],
-                                 mode='lines',
-                                 name=column),
-                      row=1, col=1)
+                                {"type": "scatter"}]],
+                        subplot_titles=('Tyre Model', 'Summary', 'Power of Undercut', 'Time Difference'))
     summary = race.summary().sort_values(by='position')
     summary['Strategy'] = summary.index
     summary[['avgtime', 'racetime', 'gap_winner']] = summary[['avgtime', 'racetime', 'gap_winner']].round(3)
@@ -81,14 +74,41 @@ def plot_scenario(race, name):
                                  y=list(tyre.loss_fun(30).values()),
                                  mode='lines',
                                  name=tyre.name),
-                      row=3, col=1)
+                      row=1, col=1)
     fig.update_layout({'height':1350,
+                       'yaxis': {'title': 'time loss [s]',
+                                  'range': [0,10]},
                        'yaxis2': {'title': '<< Undercut - Overcut >>',
                                   'range': [-5,5]},
                        'yaxis3': {'title': 'delta time [s]',
-                                  'range': [-10,10]},
-                       'yaxis4': {'title': 'time loss [s]',
-                                  'range': [0,10]}})
+                                  'range': [-10,10]}})
+    return fig
+
+
+def plot_race(race, name):
+    fig = make_subplots(rows=2, cols=1,
+                        shared_xaxes=False,
+                        vertical_spacing=0.06,
+                        specs=[[{"type": "scatter"}],
+                                [{"type": "table"}]],
+                        subplot_titles=('RacePlot', 'Summary'))
+    raceplot=race.strategy.raceplot_fun()
+    for column in raceplot.columns:
+        fig.add_trace(go.Scatter(x=[x+1 for x in list(raceplot.index)],
+                                 y=raceplot[column],
+                                 mode='lines',
+                                 name=column),
+                      row=1, col=1)
+    summary = race.summary().sort_values(by='position')
+    summary['Strategy'] = summary.index
+    summary[['avgtime', 'racetime', 'gap_winner']] = summary[['avgtime', 'racetime', 'gap_winner']].round(3)
+    fig.add_trace(go.Table(header={'values': list(summary.columns),
+                                   'font': {'size': 10},
+                                   'align': 'left'},
+                           cells={'values': [summary[k].tolist() for k in summary.columns],
+                                  'align': 'left'}),
+                  row=2, col=1)
+    fig.update_layout({'height':1350})
     return fig
 
 
@@ -110,17 +130,6 @@ def flatten_list(mylist):
 def intersection(lst1, lst2):
     lst3 = [value for value in lst1 if value in lst2]
     return lst3
-
-
-def get_table(table, column=None, value=None):
-    if (column is None) and (value is None):
-        df = pandas.read_sql_query("SELECT * FROM `" + table + "`", engine)
-    else:
-        df = pandas.read_sql_query("SELECT * FROM `" + table + "` WHERE `" + column + "` LIKE '" + value + "'", engine)
-    if len(df) > 0:
-        return df
-    else:
-        print("No data.")
 
 
 class Tyre:
@@ -182,22 +191,20 @@ class Stint:
 class Event:
 
     def __init__(self, name=''):
+        self.data = Data()
+        self.session = self.data.calendar[self.data.calendar.session_id==name]
         self.name = name
-        self.laps = int(self.calendar().race_laps.max())
+        self.laps = int(self.session.race_laps.max())
         self.refpace = self.tyremodels().TyrePace.min()
-        self.pitloss = float(self.calendar().pit_loss.mean())
-        self.pitloss_vsc = float(self.calendar().pit_loss_vsc.mean())
-        self.pitloss_sc = float(self.calendar().pit_loss_vsc.mean())
-        self.gridloss = float(self.calendar().grid_loss.mean())
-        self.fuel_penalty = float(self.calendar().fuel_penalty.mean())
+        self.pitloss = float(self.session.pit_loss.mean())
+        self.pitloss_vsc = float(self.session.pit_loss_vsc.mean())
+        self.pitloss_sc = float(self.session.pit_loss_vsc.mean())
+        self.gridloss = float(self.session.grid_loss.mean())
+        self.fuel_penalty = float(self.session.fuel_penalty.mean())
         self.tyres = list(self.tyremodels().tyre)
 
-    def calendar(self):
-        return get_table('Calendar', 'session_id', self.name)
-
-
     def tyremodels(self):
-        df = get_table('TyreModels', 'Session', self.name)
+        df = self.data.tyremodels[self.data.tyremodels.Session==self.name].copy()
         bpace = df.TyrePace.min()
         df['tyre'] = df.apply(lambda row: Tyre(row.A, row.B, row.C, row.TyrePace - bpace, row.Compound), axis=1)
         return df
@@ -363,14 +370,14 @@ class Strategy:
 
 class Race:
 
-    def __init__(self, event, strategylist, maxiterations, tolerance):
+    def __init__(self, event, strategylist, maxiterations=1, tolerance=10**100):
         self.event = event
         self.maxiterations = maxiterations
         self.tolerance = tolerance
         self.strategies, self.strategy = self.calcrace_fun(strategylist)
 
     def calcrace_fun(self, strategylist):
-        delta = 10 ^ 1000
+        delta = 10**1000
         i = 0
         gaps = {driverstrategy.name: [[2]*laps for laps in driverstrategy.lapslist] for driverstrategy in strategylist}
         strategies = {driverstrategy.name: driverstrategy for driverstrategy in strategylist}
@@ -410,96 +417,113 @@ class Race:
         return df
 
 
-engine = create_engine(
-    'mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/'
-    'ss0isbty55bwe8te')
+class Data:
 
+    def __init__(self):
+        self.engine = create_engine(
+            'mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/'
+            'ss0isbty55bwe8te')
+        self.calendar = self.get_table('Calendar')
+        self.tyremodels = self.get_table('TyreModels')
 
-# if __name__ == '__main__':
-print('Loading available events...: ')
-[print(x) for x in intersection(list(get_table('Calendar').session_id.unique()),
-                                list(get_table('TyreModels').Session.unique()))]
-eventname = str(input('Input event name from the available events: '))
-stopn = int(input('Input max number of stops: '))
-repeat_tyres = input('Can we repeat tyre compound: ').lower() in ['true', '1', 'y', 'yes', 'si', 's']
-first_stop_window = int(input('In which lap does the pit-window open? '))
-number_of_cars = int(input('How many cars are racing? '))
-print('Computing....')
+    def get_table(self, table, column=None, value=None):
+        if (column is None) and (value is None):
+            df = pandas.read_sql_query("SELECT * FROM `" + table + "`", self.engine)
+        else:
+            df = pandas.read_sql_query("SELECT * FROM `" + table + "` WHERE `" + column + "` LIKE '" + value + "'",
+                                       self.engine)
+        if len(df) > 0:
+            return df
+        else:
+            print("No data.")
 
+    def get_inputs(self):
 
-starttime = time.time()
-event = Event(eventname)
-drivers = [Driver(0, 'xxx')]
-tyres = event.tyres
+        print('Loading available events...: ')
+        [print(x) for x in intersection(list(self.calendar.session_id.unique()),
+                                        list(self.tyremodels.Session.unique()))]
+        eventname = str(input('Input event name from the available events: '))
+        stopn = int(input('Input max number of stops: '))
+        repeat_tyres = input('Can we repeat tyre compound: ').lower() in ['true', '1', 'y', 'yes', 'si', 's']
+        first_stop_window = int(input('In which lap does the pit-window open? '))
+        number_of_cars = int(input('How many cars are racing? '))
+        return eventname, stopn, repeat_tyres, first_stop_window, number_of_cars
 
-calcoptionstime = time.time()
-tyreoptions = []
-if repeat_tyres:
-    for stops in range(1, int(stopn) + 1):
-        tyreoptions = tyreoptions + [list(item) for item in (list(itertools.product(tyres, repeat = stops + 1)))]
-else:
-    for stops in range(1, int(stopn) + 1):
-        tyreoptions = tyreoptions + [list(item) for item in (list(itertools.permutations(tyres, stops + 1)))]
-laps = list([list(seq) for i in range(0,int(stopn+2))
-             for seq in itertools.permutations(list(range(1, event.laps + 1)),i) if sum(seq) == event.laps])
+class StrategyForecast():
 
-print('options elapsed time: ' + str(time.time()-calcoptionstime))
+    def __init__(self):
+        self.eventname, self.stopn, self.repeat_tyres, self.first_stop_window, self.number_of_cars = Data().get_inputs()
+        self.event = Event(self.eventname)
+        self.tyres = self.event.tyres
 
-strategiestime = time.time()
-strategies = []
-for driver in drivers:
-    for lap in laps:
-        if lap[0] >= first_stop_window:
-            for tyre in tyreoptions:
-                if len(lap)==len(tyre):
-                    strategies = strategies + [DriverStrategy(lap, tyre, driver, event,
-                                                              name=event.name + ' ' + driver.name + ' ' + str(
-                                                                  [t.name for t in tyre]) + ' ' + str(lap))]
+    def strategy_options(self):
+        print('Computing...')
+        start = time.time()
+        tyreoptions = []
+        if self.repeat_tyres:
+            for stops in range(1, int(self.stopn) + 1):
+                tyreoptions += [list(item) for item in list(itertools.product(self.tyres, repeat = stops + 1))]
+        else:
+            for stops in range(1, int(self.stopn) + 1):
+                tyreoptions += [list(item) for item in list(itertools.permutations(self.tyres, stops + 1))]
+        lapoptions = list([list(seq) for i in range(0, int(self.stopn + 2))
+                     for seq in itertools.permutations(list(range(1, self.event.laps + 1)), i) if sum(seq) == self.event.laps])
+        print('options elapsed time: ' + str(time.time() - start))
+        start = time.time()
+        strategies = []
+        driver = Driver(0, 'Driver0')
+        for lap in lapoptions:
+            if lap[0] >= self.first_stop_window:
+                for tyre in tyreoptions:
+                    if len(lap) == len(tyre):
+                        strategies += [DriverStrategy(lap, tyre, driver, self.event,
+                                                      name=self.event.name + str([t.name for t in tyre])
+                                                           + ' ' + str(lap))]
 
-print(str(len(strategies)) + ' strategies elapsed time: ' + str(time.time()-strategiestime))
+        print(str(len(strategies)) + ' strategy options elapsed time: ' + str(time.time() - start))
+        return strategies
 
-racetime = time.time()
-myrace = Race(event, strategies, 1, len(strategies)*0.1)
+    def best_strategies(self, nstrategies):
+        strategies = self.strategy_options()
+        start = time.time()
+        myrace = Race(self.event, strategies)
+        print('Best strategy: ' + str(list(
+            myrace.strategy.positions_df[myrace.strategy.positions_df <= 1].loc[self.event.laps].dropna().index)))
+        winnerstrategies_names = list(
+            myrace.strategy.positions_df[myrace.strategy.positions_df <= nstrategies].loc[self.event.laps].dropna().index)
+        winnerstrategies = [strat for strat in strategies if strat.name in winnerstrategies_names]
+        print('Best strategies time: '+ str(time.time() - start))
+        return winnerstrategies
 
-print('race elapsed time: ' + str(time.time()-racetime))
-print('Best strategy: ' + str(list(
-    myrace.strategy.positions_df[myrace.strategy.positions_df <= 1].loc[event.laps].dropna().index)))
+    def montecarlo(self, iterations=1000, nstrategies=5):
+        winnerstrategies = self.best_strategies(nstrategies)
+        start = time.time()
+        drivers = [Driver(0, 'P ' + str(startingpos), startingpos) for startingpos in range(1, self.number_of_cars + 1)]
+        summary_list = []
+        bar = progressbar.ProgressBar(maxval=iterations, \
+                                      widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+        bar.start()
+        for iter in range(iterations):
+            strategies = []
+            for driver in drivers:
+                singlestrategy = random.choice(winnerstrategies)
+                strategies.append(DriverStrategy(singlestrategy.lapslist, singlestrategy.tyrelist, driver, self.event,
+                                                 name=self.event.name + ' ' + driver.name + ' ' +
+                                                      str([t.name for t in singlestrategy.tyrelist])
+                                                      + ' ' + str(singlestrategy.lapslist)))
+            summary_list.append(Race(self.event, strategies, 100, len(strategies) * 0.1).summary())
+            bar.update(iter + 1)
+        bar.finish()
+        summary_df = summary_list[0].append(summary_list[1:])
+        print('\nMonte-Carlo elapsed time: ' + str(time.time() - start))
+        return summary_df
 
-racetime = time.time()
-winnerstrategies_names = list(
-    myrace.strategy.positions_df[myrace.strategy.positions_df <= 5].loc[event.laps].dropna().index)
-winnerstrategies = [strat for strat in strategies if strat.name in winnerstrategies_names]
+if __name__ == '__main__':
+    forecast = StrategyForecast()
+    best_strategies = forecast.best_strategies(5)
+    best_strategies_race = Race(forecast.event,best_strategies)
+    plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
+    plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
 
-drivers = [Driver(0,'pos '+ str(startingpos), startingpos) for startingpos in range(1, number_of_cars + 1)]
-
-myrace = []
-for iter in range(0,10000):
-    strategies = []
-    for driver in drivers:
-        singlestrategy = random.choice(winnerstrategies)
-        strategies.append(DriverStrategy(singlestrategy.lapslist, singlestrategy.tyrelist, driver, event,
-                                                              name=event.name + ' ' + driver.name + ' ' + str(
-                                                                  [t.name for t in singlestrategy.tyrelist]) + ' ' +
-                                                                   str(singlestrategy.lapslist)))
-    myrace.append(Race(event, strategies, 5, len(strategies) * 0.1))
-summary_list = [x.summary() for x in myrace]
-summary_df = summary_list[0].append(summary_list[1:])
-
-# myrace_winners = Race(event, winnerstrategies, 1, len(winnerstrategies)*0.1)
-#
-# print('race winners time: ' + str(time.time()-racetime))
-#
-# racetime = time.time()
-# myrace_winners_traffic = Race(event, winnerstrategies, 100, len(winnerstrategies)*0.1)
-#
-# print('race traffic elapsed time: ' + str(time.time()-racetime))
-# print('Best strategy with traffic: ' + str(list(
-#     myrace.strategy.positions_df[myrace_winners_traffic.strategy.positions_df <= 1].loc[event.laps].dropna().index)))
-
-# plot_scenario(myrace,'All').write_html('All_cases.html')
-# plot_scenario(myrace_winners,'Best').write_html('Best_cases.html')
-# plot_scenario(myrace_winners_traffic,'Best with overtaking model').write_html('Best_cases_Overtaking.html')
-# # webbrowser.open('All_cases.html')
-# webbrowser.open('Best_cases.html')
-# webbrowser.open('Best_cases_Overtaking.html')
-print('total elapsed time: ' + str(time.time()-starttime))
+    webbrowser.open(forecast.eventname + '_Best_Strategies.html')
+    webbrowser.open(forecast.eventname + '_Scenario.html')
