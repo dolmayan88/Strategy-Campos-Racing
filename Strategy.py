@@ -1,18 +1,17 @@
-# import math
-# import json
+
 import time
 import webbrowser
-# import datetime
+import random
 import numpy as np
 import pandas
 import itertools
-# from flask_caching import Cache
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from sqlalchemy import create_engine
-# import os
-import random
-import progressbar
+import os
+from multiprocessing import Process
+import concurrent.futures
+import statistics
 
 
 def plot_df(df, title='', xaxis='', yaxis=''):
@@ -28,7 +27,7 @@ def plot_df(df, title='', xaxis='', yaxis=''):
     return fig
 
 
-def boxplot_df(df, xcolumn, ycolumn, title='', xaxis='', yaxis=''):
+def boxplot_df(df, xcolumn, ycolumn, title='', xaxis='', yaxis='', order_by_median = True):
     fig = go.Figure()
     for series in df[xcolumn].unique():
         fig.add_trace(go.Box(y=list(df[df[xcolumn]==series][ycolumn]),
@@ -36,6 +35,7 @@ def boxplot_df(df, xcolumn, ycolumn, title='', xaxis='', yaxis=''):
     fig.update_layout(title=title,
                       xaxis_title=xaxis,
                       yaxis_title=yaxis)
+    fig.data = bubble_sort(fig.data)
     return fig
 
 
@@ -120,6 +120,21 @@ def listintosublist(primarylist, sublist):
             newsublist.append(primarylist.pop(0))
         newlist.append(newsublist)
     return newlist
+
+
+def bubble_sort(figure_data):
+    # We set swapped to True so the loop looks runs at least once
+    figure_data = list(figure_data)
+    swapped = True
+    while swapped:
+        swapped = False
+        for i in range(len(figure_data) - 1):
+            if statistics.median(figure_data[i].y) > statistics.median(figure_data[i + 1].y):
+                # Swap the elements
+                figure_data[i], figure_data[i + 1] = figure_data[i + 1], figure_data[i]
+                # Set the flag to True so we'll loop again
+                swapped = True
+    return tuple(figure_data)
 
 
 def flatten_list(mylist):
@@ -374,7 +389,7 @@ class Race:
         self.event = event
         self.maxiterations = maxiterations
         self.tolerance = tolerance
-        self.strategies, self.strategy = self.calcrace_fun(strategylist)
+        self.strategies, self.strategy, self.delta = self.calcrace_fun(strategylist)
 
     def calcrace_fun(self, strategylist):
         delta = 10**1000
@@ -402,7 +417,7 @@ class Race:
                                               list(strategy.gapsahead_df[name].values))
                               ])
                          for name in nameslist])
-        return strategies, strategy
+        return strategies, strategy, delta
 
     def summary(self):
         df = pandas.DataFrame.from_dict(self.strategy.avgtimes, orient='index', columns=['avgtime'])
@@ -495,25 +510,25 @@ class StrategyForecast():
         print('Best strategies time: '+ str(time.time() - start))
         return winnerstrategies
 
-    def montecarlo(self, iterations=1000, nstrategies=5):
-        winnerstrategies = self.best_strategies(nstrategies)
+    def montecarlo(self, winnerstrategies=False, iterations=1000, nstrategies=5, traffic_it=10):
+        if not winnerstrategies:
+            winnerstrategies = self.best_strategies(nstrategies)
         start = time.time()
-        drivers = [Driver(0, 'P ' + str(startingpos), startingpos) for startingpos in range(1, self.number_of_cars + 1)]
+        print('Computing Monte-Carlo...')
+        event = self.event
+        number_of_cars = self.number_of_cars
+        drivers = [Driver(0, 'P ' + str(startingpos), startingpos) for startingpos in range(1, number_of_cars + 1)]
         summary_list = []
-        bar = progressbar.ProgressBar(maxval=iterations, \
-                                      widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
-        bar.start()
         for iter in range(iterations):
             strategies = []
             for driver in drivers:
                 singlestrategy = random.choice(winnerstrategies)
-                strategies.append(DriverStrategy(singlestrategy.lapslist, singlestrategy.tyrelist, driver, self.event,
-                                                 name=self.event.name + ' ' + driver.name + ' ' +
+                strategies.append(DriverStrategy(singlestrategy.lapslist, singlestrategy.tyrelist, driver, event,
+                                                 name=event.name + ' ' + driver.name + ' ' +
                                                       str([t.name for t in singlestrategy.tyrelist])
                                                       + ' ' + str(singlestrategy.lapslist)))
-            summary_list.append(Race(self.event, strategies, 100, len(strategies) * 0.1).summary())
-            bar.update(iter + 1)
-        bar.finish()
+            summary_list.append(Race(event, strategies, traffic_it, len(strategies) * 0.1).summary())
+            print("\r\t> Progress\t:{:.2%}".format((iter + 1) / iterations), end='')
         summary_df = summary_list[0].append(summary_list[1:])
         print('\nMonte-Carlo elapsed time: ' + str(time.time() - start))
         return summary_df
@@ -522,8 +537,33 @@ if __name__ == '__main__':
     forecast = StrategyForecast()
     best_strategies = forecast.best_strategies(5)
     best_strategies_race = Race(forecast.event,best_strategies)
+    summary = forecast.montecarlo(best_strategies,1000,5)
     plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
     plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
+    startingP = 6
+    boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
+                                                                                             '_Final_Position_startingP'
+                                                                                             + startingP + '.html')
 
     webbrowser.open(forecast.eventname + '_Best_Strategies.html')
     webbrowser.open(forecast.eventname + '_Scenario.html')
+    webbrowser.open(forecast.eventname + '_Final_Position_startingP' + startingP + '.html')
+
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+    #     print('working')
+    #     results = [executor.submit(forecast.montecarlo, (best_strategies, 1, 5, 1)) for _ in range(os.cpu_count())]
+    # print('finished')
+
+    # print(results)
+    # print(summary)
+    # processes = []
+    # for _ in range(4):
+    #     proc = Process(target=forecast.montecarlo)
+    #     processes.append(proc)
+    #
+    # for process in processes:
+    #     process.start()
+    #
+    # for process in processes:
+    #     process.join()
+
