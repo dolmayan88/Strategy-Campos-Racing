@@ -5,6 +5,7 @@ import random
 import numpy as np
 import pandas
 import itertools
+import plotly.express as px
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from sqlalchemy import create_engine
@@ -169,7 +170,7 @@ class Driver:
         self.delta_pace = delta_pace
         self.name = name
         self.startingposition = startingposition
-        self.max_time_loss = 0.5
+        self.max_time_loss = 1
         self.starting_time_loss = 0
         self.gap_at_timeloss0 = 1
 
@@ -510,7 +511,7 @@ class StrategyForecast():
         print('Best strategies time: '+ str(time.time() - start))
         return winnerstrategies
 
-    def montecarlo(self, winnerstrategies=False, iterations=1000, nstrategies=5, traffic_it=10):
+    def montecarlo(self, winnerstrategies=False, iterations=1000, nstrategies=5, traffic_it=10, traffic_tolerance=2):
         if not winnerstrategies:
             winnerstrategies = self.best_strategies(nstrategies)
         start = time.time()
@@ -527,7 +528,7 @@ class StrategyForecast():
                                                  name=event.name + ' ' + driver.name + ' ' +
                                                       str([t.name for t in singlestrategy.tyrelist])
                                                       + ' ' + str(singlestrategy.lapslist)))
-            summary_list.append(Race(event, strategies, traffic_it, len(strategies) * 0.1).summary())
+            summary_list.append(Race(event, strategies, traffic_it, traffic_tolerance).summary())
             print("\r\t> Progress\t:{:.2%}".format((iter + 1) / iterations), end='')
         summary_df = summary_list[0].append(summary_list[1:])
         print('\nMonte-Carlo elapsed time: ' + str(time.time() - start))
@@ -537,17 +538,22 @@ if __name__ == '__main__':
     forecast = StrategyForecast()
     best_strategies = forecast.best_strategies(5)
     best_strategies_race = Race(forecast.event,best_strategies)
-    summary = forecast.montecarlo(best_strategies,1000,5)
+    best_strategies_race_traffic = Race(forecast.event,best_strategies,100,0.5)
+    summary = forecast.montecarlo(best_strategies,1000,5, 100)
     plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
+    plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
+                                                                                  '_Best_Strategies_traffic.html')
     plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
-    startingP = 6
-    boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
+    for startingP in summary.starting_position.unique():
+        boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
                                                                                              '_Final_Position_startingP'
-                                                                                             + startingP + '.html')
+                                                                                                 + str(startingP) +
+                                                                                                 '.html')
 
+    px.box(summary, x='starting_position', y='position').write_html(forecast.eventname + '_startingP_vs_finalP.html')
     webbrowser.open(forecast.eventname + '_Best_Strategies.html')
+    webbrowser.open(forecast.eventname + '_Best_Strategies_traffic.html')
     webbrowser.open(forecast.eventname + '_Scenario.html')
-    webbrowser.open(forecast.eventname + '_Final_Position_startingP' + startingP + '.html')
 
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     print('working')
