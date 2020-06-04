@@ -555,6 +555,17 @@ if __name__ == '__main__':
     webbrowser.open(forecast.eventname + '_Best_Strategies_traffic.html')
     webbrowser.open(forecast.eventname + '_Scenario.html')
 
+    df = summary.groupby(by=['name']).position.median()
+    df2 = summary.groupby(by=['name']).starting_position.median()
+    df3 = pandas.concat([df, df2], axis=1)
+    df3['myrank'] = df3.groupby('starting_position').position.rank(method='dense')
+    best_strategies_startingposition = df3[df3.myrank == 1]
+    print('Best Strategies for each starting position:')
+    print(best_strategies_startingposition)
+
+    summary.to_csv(forecast.eventname + '_summary.csv')
+    best_strategies_startingposition.to_csv(forecast.eventname + '_best_strategies_startingposition.csv')
+
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     print('working')
     #     results = [executor.submit(forecast.montecarlo, (best_strategies, 1, 5, 1)) for _ in range(os.cpu_count())]
