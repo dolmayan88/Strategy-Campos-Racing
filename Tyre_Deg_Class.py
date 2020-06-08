@@ -536,19 +536,21 @@ app.layout = html.Div(children=[
                                                                  labelPosition = 'left',
                                                                  color='green',
                                                                  on=False),
-                                               style={'display':'table-cell'}),
+                                               style={'display':'table-cell',
+                                                      'width': '10%'}),
                                       html.Button(children='Send Model to DDBB',
                                                   id='DDBB Model button',
                                                   type='submit',
                                                   style={'display': 'table-cell',
-                                                         'width' : '100%'}),
+                                                         'width' : '20%'}),
                                       html.Button(children='Update Table',
                                                   id='update_table_button',
                                                   type='submit',
                                                   style={'display': 'table-cell',
-                                                         'width' : '100%'}),
+                                                         'width' : '20%'}),
                                       ],
-                                     style={'display':'table'}),
+                                     style={'display':'table',
+                                            'width': '100%'}),
     html.Div([html.Div(dt.DataTable(id='database_table',
                                     columns=[{'name': i, 'id': i, 'deletable': False} for i in tyremodels.columns if i not in ['id', 'AI', 'Filtered Laps']],
                                     data = tyremodels.to_dict('records'),
@@ -860,11 +862,15 @@ def send_model_to_DDBB(my_input):
     User_Event.db.dispose()
     return dict(display='none')
 
-@app.callback(Input('update_table_button', 'n_clicks'))
+@app.callback([Output('database_table', 'data'),
+               Output('database_table', 'filter_query')],
+              [Input('update_table_button', 'n_clicks')])
 def update_table_database(nclicks):
     global tyremodels
+    User_Event = Event()
     tyremodels = User_Event.TyreModelsDB
     tyremodels['id'] = tyremodels.AI
+    return tyremodels.to_dict('records'), ''
 
 #####################MAIN PROGRAM##############################################                
 
