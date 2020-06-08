@@ -542,6 +542,11 @@ app.layout = html.Div(children=[
                                                   type='submit',
                                                   style={'display': 'table-cell',
                                                          'width' : '100%'}),
+                                      html.Button(children='Update Table',
+                                                  id='update_table_button',
+                                                  type='submit',
+                                                  style={'display': 'table-cell',
+                                                         'width' : '100%'}),
                                       ],
                                      style={'display':'table'}),
     html.Div([html.Div(dt.DataTable(id='database_table',
@@ -854,6 +859,12 @@ def send_model_to_DDBB(my_input):
     conn.close()
     User_Event.db.dispose()
     return dict(display='none')
+
+@app.callback(Input('update_table_button', 'n_clicks'))
+def update_table_database(nclicks):
+    global tyremodels
+    tyremodels = User_Event.TyreModelsDB
+    tyremodels['id'] = tyremodels.AI
 
 #####################MAIN PROGRAM##############################################                
 
