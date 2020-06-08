@@ -21,8 +21,11 @@ import dash_table as dt
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input,Output,State
+import dash_daq as daq
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
+
+import Strategy
 
 ###############################################################################
 global Event, Heidi_DDBB
@@ -49,13 +52,16 @@ class Event():
 
     def __init__(self,Naming_convention='',livemargin=3600,pdftiming=False,category='',live=False):
 
+        self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
+        #One Single Access to DB
+        self.CalendarDB=Event.getTotalTable("Calendar", None, None)
+        # self.TyreAllocDB=self.getTotalTable("TyreAlloc", None, None)
+        self.TyreModelsDB=self.getTotalTable("TyreModels", None, None)
         self.Name = str(Naming_convention)
         self.Chsip = self.Name.split("_")[0] if len(self.Name)>7 else ''
         self.Year = self.Name.split("_")[1][0:2] if len(self.Name)>7 else ''
         self.Track = self.Name.split("_")[1][5:8] if len(self.Name)>7 else ''
         self.Session = self.Name.split("_")[2] if len(self.Name)>7 else ''
-        
-        self.db = create_engine('mysql://mf6bshg8uxot8src:nvd3akv0rndsmc6v@nt71li6axbkq1q6a.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306/ss0isbty55bwe8te')
         #One Single Access to DB
         self.CalendarDf=Event.getTotalTable("Calendar","Session_id",self.Name)
         self.TyreAllocDf=self.getTotalTable("TyreAlloc","Session",self.Name)
@@ -308,20 +314,31 @@ class Event():
                 else:
                     return y_median_deg_values
                    
-    def TyreModelCoeffs(self,laps,laptimes):
+    def TyreModelCoeffs(self,laps,laptimes, linear = False):
         
 #        global y_weight
         g=[0.25,0.25,0.25]
 #        y_weight = np.empty(len(laptimes))
 #        y_weight.fill(1)
 #        y_weight[10:] = 0.1
-        coeff,cov =curve_fit(Eq_Model,laps,laptimes)#,sigma=y_weight,absolute_sigma=True)
+        inf=np.inf
+        if linear:
+            bounds = ([-inf,0,-inf], [inf,1*10**-100,inf])
+        else:
+            bounds = (-np.inf, np.inf)
+        coeff,cov = curve_fit(Eq_Model,laps,laptimes, bounds=bounds)#,sigma=y_weight,absolute_sigma=True)
         try:
             return coeff.tolist(),cov.tolist()
         except:
             return[0,0,0],[0,0,0]
 
 ######################DASH APP#################################################
+
+User_Event = Event()
+calendar = User_Event.CalendarDB
+tyremodels = User_Event.TyreModelsDB
+tyremodels['id'] = tyremodels.AI
+calendar['session'] = calendar.apply(lambda row: row.session_id[-2], axis=1)
 
 app=dash.Dash(__name__)
 
@@ -346,13 +363,17 @@ app.layout = html.Div(children=[
                                                         ),
                                         ),
                             html.Div(['Introduce the Event Naming Convention to analyse:',
-                                dcc.Input(id = 'event input', type = 'text', value = ''),
-                                html.Button(
-                                    children = 'Step 1: Confirm Event',
-                                    id = 'event confirm button',
-                                    type = 'submit',
-                                    n_clicks = 0
-                                    ),
+                                # dcc.Input(id = 'event input', type = 'text', value = ''),
+                                dcc.Dropdown(id = 'event input',
+                                             options = [{'label': i, 'value': i} for i in calendar[(calendar.pdf_flag=='1') & (calendar.session =='R')].session_id],
+                                             multi = False,
+                                             value = ''),
+                                # html.Button(
+                                #     children = 'Step 1: Confirm Event',
+                                #     id = 'event confirm button',
+                                #     type = 'submit',
+                                #     n_clicks = 0
+                                #     ),
                                 ],
                                 style = dict(
                                     width = '30%',
@@ -510,22 +531,116 @@ app.layout = html.Div(children=[
                             
                             ],style=dict(display='table',width='100%')),
 
-                            html.Button(
-                                children='Send Model to DDBB',
-                                id='DDBB Model button',
-                                type='submit'
-                                #                                    n_clicks = 0
-                            )
+                            html.Div([html.Div(daq.BooleanSwitch(id='Linear_model_switch',
+                                                                 label='Linear Model',
+                                                                 labelPosition = 'left',
+                                                                 color='green',
+                                                                 on=False),
+                                               style={'display':'table-cell'}),
+                                      html.Button(children='Send Model to DDBB',
+                                                  id='DDBB Model button',
+                                                  type='submit',
+                                                  style={'display': 'table-cell',
+                                                         'width' : '100%'}),
+                                      ],
+                                     style={'display':'table'}),
+    html.Div([html.Div(dt.DataTable(id='database_table',
+                                    columns=[{'name': i, 'id': i, 'deletable': False} for i in tyremodels.columns if i not in ['id', 'AI', 'Filtered Laps']],
+                                    data = tyremodels.to_dict('records'),
+                                    editable = False,
+                                    filter_action = "native",
+                                    sort_action = "native",
+                                    sort_mode = 'multi',
+                                    row_selectable = 'multi',
+                                    row_deletable = False,
+                                    selected_rows = [],
+                                    page_action = 'native',
+                                    page_current = 0,
+                                    page_size = 10,
+                                    style_data={'whiteSpace': 'normal',
+                                                'height': 'auto',
+                                                'lineHeight': '15px'
+                                                },
+                                    style_table={'overflowX': 'auto'},
+                                    style_cell={
+                                        # all three widths are needed
+                                        'minWidth': '100px', 'width': '100px', 'maxWidth': '100px',
+                                        'overflow': 'hidden',
+                                        'textOverflow': 'ellipsis',
+                                    }
+                                    ),
+                       style={'display': 'table-cell',
+                              'width': '50%',
+                              'padding': 60}),
+              html.Div(id='Timeloss_chart',
+                       style={'padding': -40})],
+             style={'display': 'table'}),
+    dcc.Input(id='filter-query-input', placeholder='Enter filter query', style={'width': '100%'})
                             ])
 
-@app.callback(Output('hidden div','children'),
-              [Input('event confirm button','n_clicks')],
-              [State('event input','value')])
+@app.callback(
+    Output('database_table', 'filter_query'),
+    [Input('filter-query-input', 'value')]
+)
+def write_query(query):
+    print(query)
+    if query is None:
+        return ''
+    return query
 
-def eventclasscreation(button_click,event_naming_convention):
+@app.callback(Output('Timeloss_chart', 'children'),
+              [Input('database_table', 'derived_virtual_row_ids'),
+               Input('database_table', 'selected_row_ids'),
+               Input('database_table', 'active_cell')]
+              )
+def plot_tyremodels(row_ids, selected_row_ids, active_cell):
+    # global tyremodels
+    selected_id_set = set(selected_row_ids or [])
+
+    my_df = tyremodels
+    if row_ids is None:
+        # pandas Series works enough like a list for this to be OK
+        row_ids = tyremodels['id']
+    else:
+        my_df = tyremodels[tyremodels.id.isin(row_ids)]
+
+    active_row_id = active_cell['id'] if active_cell else None
+
+    # colors = ['#FF69B4' if id == active_row_id
+    #           else '#7FDBFF' if id in selected_id_set
+    #           else '#0074D9'
+    #           for id in row_ids]
+    my_df['tyre'] = my_df.apply(lambda row: Strategy.Tyre(row.A, row.B, row.C), axis=1)
+    x=list(range(0,30))
+    figure = go.Figure()
+    for id in my_df.id.unique():
+        width=1
+        if selected_row_ids is not None:
+            if id in selected_row_ids:
+                width=3
+        figure.add_trace(go.Scatter(x=x,
+                                    y=list(my_df[my_df.id==id].tyre.values[0].loss_fun(max(x)+1).values()),
+                                    name=str(my_df[my_df.id==id][['Session', 'Compound']].values[0]),
+                                    line={'width': width}
+                                    )
+                         )
+    figure.update_layout({'yaxis': {'title': 'time loss [s]',
+                                    'range': [0,10]}})
+    return [
+        dcc.Graph(
+            id='tyreloss',
+            figure=figure,
+        )
+    ]
+
+
+@app.callback(Output('hidden div','children'),
+              # [Input('event confirm button','n_clicks')],
+              [Input('event input','value')])
+def eventclasscreation(event_naming_convention):
     global User_Event,conn
-    if button_click>0:
-        User_Event=Event(Naming_convention=event_naming_convention,pdftiming=True)
+    # if button_click>0:
+    User_Event=Event(Naming_convention=event_naming_convention,pdftiming=True)
         # conn = User_Event.db.connect()
         # conn.close()
         # User_Event.db.dispose()
@@ -566,12 +681,13 @@ def updatelapfilter(comp,top_nr_dri):
                 Input('sector options dropdown','value'),
                 Input('mode options dropdown','value'),
                 Input('refresh button','n_clicks'),
-                Input('laps filter','value')
+                Input('laps filter','value'),
+                Input('Linear_model_switch','on')
                 ])
 
-def updategraph(plot_options,compound,driverfilterlist,track_sector,y_values_mode,n_clicks,filtered_laps):
+def updategraph(plot_options,compound,driverfilterlist,track_sector,y_values_mode,n_clicks,filtered_laps, linear_model):
     
-    global laps, TyreModelCoeffs, actual_comp #Global Variables to update Table
+    global laps, TyreModelCoeffs, actual_comp, Driverlist #Global Variables to update Table
 
     laps=sorted(filtered_laps)
     sector = GetSectorMode(track_sector)
@@ -583,7 +699,7 @@ def updategraph(plot_options,compound,driverfilterlist,track_sector,y_values_mod
     print(len(y_median_deg))
 
     #Get Model Values
-    TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg)
+    TyreModelCoeffs,TyreModelCovar=User_Event.TyreModelCoeffs(laps,y_median_deg,linear_model)
     y_model_deg=Eq_Model(np.array(laps),TyreModelCoeffs[0],TyreModelCoeffs[1],TyreModelCoeffs[2])
 
     #Get Compound Selected Data Values for getting driver values
@@ -717,7 +833,8 @@ def updatetabledata(figure,comp,top_nr_dri):
     global dff
     dff = pd.DataFrame(data=[{'A': round(TyreModelCoeffs[0], 3), 'B': round(TyreModelCoeffs[1], 3),
                               'C': round(TyreModelCoeffs[2], 3), 'TyrePace': pace_tyre,'Session': str(User_Event.Name),
-                              'PO': comp, 'Compound': actual_comp, 'TopDriversX': str(top_nr_dri),
+                              'PO': comp, 'Compound': actual_comp, 'TopDriversX':",".join(
+                                  [str(items) for items in Driverlist]),
                               'Filtered Laps': ",".join(
                                   [str(items) for items in laps])}])  # replace with your own data processing code
     new_table_figure = ff.create_table(dff)
@@ -744,7 +861,7 @@ if __name__ == "__main__":
 
     app.run_server(debug=False)
 
-event=Event("F2_19R01BAH_R1",pdftiming=True)
+# event=Event("F2_19R01BAH_R1",pdftiming=True)
 
 ###############################################################################
 
