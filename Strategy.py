@@ -537,12 +537,18 @@ class StrategyForecast():
 if __name__ == '__main__':
     forecast = StrategyForecast()
     best_strategies = forecast.best_strategies(5)
+    best_strategies_10 = forecast.best_strategies(10)
     best_strategies_race = Race(forecast.event,best_strategies)
+    best_strategies_race_10 = Race(forecast.event,best_strategies_10)
     best_strategies_race_traffic = Race(forecast.event,best_strategies,100,0.5)
+    best_strategies_race_traffic_10 = Race(forecast.event,best_strategies_10,100,0.5)
     summary = forecast.montecarlo(best_strategies,1000,5, 100)
     plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
     plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
                                                                                   '_Best_Strategies_traffic.html')
+    plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
+    plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
+                                                                                  '_10_Best_Strategies_traffic.html')
     plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
     for startingP in summary.starting_position.unique():
         boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
