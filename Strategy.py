@@ -166,22 +166,24 @@ class Tyre:
 
 class Driver:
 
+    max_time_loss = 1
+    starting_time_loss = 0
+    gap_at_timeloss0 = 1
+
     def __init__(self, delta_pace=0, name='', startingposition=0):
         self.delta_pace = delta_pace
         self.name = name
         self.startingposition = startingposition
-        self.max_time_loss = 1
-        self.starting_time_loss = 0
-        self.gap_at_timeloss0 = 1
 
     def loss_fun(self, lapsinstint):
         return {i: self.delta_pace for i in range(1, lapsinstint + 1)}
 
-    def traffic_loss_fun(self, gap):
-        if 0 < gap < self.gap_at_timeloss0:
-            return gap / self.gap_at_timeloss0 * (self.starting_time_loss - self.max_time_loss) + self.max_time_loss
-        else:
-            return 0
+    @staticmethod
+    def traffic_loss_fun(gap):
+        if isinstance(gap,float) or isinstance(gap,int):
+            if 0 < gap < Driver.gap_at_timeloss0:
+                return gap / Driver.gap_at_timeloss0 * (Driver.starting_time_loss - Driver.max_time_loss) + Driver.max_time_loss
+        return 0
 
 
 class Stint:
@@ -542,14 +544,14 @@ if __name__ == '__main__':
     best_strategies_race_10 = Race(forecast.event,best_strategies_10)
     best_strategies_race_traffic = Race(forecast.event,best_strategies,100,0.5)
     best_strategies_race_traffic_10 = Race(forecast.event,best_strategies_10,100,0.5)
-    summary = forecast.montecarlo(best_strategies,1000,5, 100)
     plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
     plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
                                                                                   '_Best_Strategies_traffic.html')
-    plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
-    plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
+    plot_race(best_strategies_race_10, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
+    plot_race(best_strategies_race_traffic_10, 'Best Strategies Traffic').write_html(forecast.eventname +
                                                                                   '_10_Best_Strategies_traffic.html')
     plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
+    summary = forecast.montecarlo(best_strategies,1000,5, 100)
     for startingP in summary.starting_position.unique():
         boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
                                                                                              '_Final_Position_startingP'

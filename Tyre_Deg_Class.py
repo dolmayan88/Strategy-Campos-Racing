@@ -99,6 +99,7 @@ class Event():
         self.LapTimesDf['pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
         self.LapTimesDf['Stint']=self.LapTimesDf['pits']+1
         self.LapTimesDf['StintLaps']=self.LapTimesDf.groupby(['driver','pits']).cumcount()+1
+        self.LapTimesDf['laptime_gap_corrected'] = self.LapTimesDf.apply(lambda row: row['laptime_fuel_corrected'] - Strategy.Driver.traffic_loss_fun(row.interval), axis=1)
         self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.PrimeCompound]
         self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
         self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.OptionCompound]
@@ -261,7 +262,11 @@ class Event():
                    return self.TyreAllocDf['s10'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
                                   
     def TopXDrivers(self,top_number):
-        top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
+        if top_number != 'all':
+            top_number = int(top_number)
+            top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
+        else:
+            top_driver_list=self.LapTimesDf.driver.unique()
         return top_driver_list
                     
     def GetLaptimesOrDegMedianByDriver(self,laps_filter,compound,driverlist,y_values_mode,sector):
@@ -444,7 +449,7 @@ app.layout = html.Div(children=[
                             html.Div([           
                             html.Div(['S1/S2/S3/Full Lap Mode',                 
                                       dcc.Dropdown(id = 'sector options dropdown',
-                                                   options=[{'label': i, 'value': i} for i in ['S1','S2','S3','Full Lap']],
+                                                   options=[{'label': i, 'value': i} for i in ['S1','S2','S3','Full Lap','full lap - gap corrected']],
                                                    placeholder="Select Sector to analyse or full lap",
                                                    value='Full Lap')
                                         ],
@@ -625,9 +630,12 @@ def plot_tyremodels(row_ids, selected_row_ids, active_cell):
         if selected_row_ids is not None:
             if id in selected_row_ids:
                 width=3
+        name = str(my_df[my_df.id==id][['Session', 'Compound']].values[0])
+        if len(str(my_df[my_df.id == id]['TopDriversX'].values[0])) == 3:
+            name += ' ' + str(my_df[my_df.id == id]['TopDriversX'].values[0])
         figure.add_trace(go.Scatter(x=x,
                                     y=list(my_df[my_df.id==id].tyre.values[0].loss_fun(max(x)+1).values()),
-                                    name=str(my_df[my_df.id==id][['Session', 'Compound']].values[0]),
+                                    name=name,
                                     line={'width': width}
                                     )
                          )
@@ -662,7 +670,7 @@ def eventclasscreation(event_naming_convention):
               )
 def updatelapfilter(comp,top_nr_dri):
 
-    driveroptions = [dict(label=str(i), value=str(i)) for i in User_Event.TopXDrivers(int(top_nr_dri))]
+    driveroptions = [dict(label=str(i), value=str(i)) for i in User_Event.TopXDrivers(top_nr_dri)]
     drivervalue = [d['value'] for d in driveroptions]
 
     if str.lower(comp) =='prime':
@@ -791,6 +799,8 @@ def GetSectorMode(track_sector):
 
     if str.lower(track_sector) == 'full lap':
         sector = "laptime_fuel_corrected"
+    elif str.lower(track_sector) == 'full lap - gap corrected':
+        sector = "laptime_gap_corrected"
     elif str.lower(track_sector) == 's1':
         sector = "s1"
     elif str.lower(track_sector) == 's2':
@@ -835,15 +845,17 @@ def GetDriversData(GroupByDriver, driverlist, laps, laptimes_df, sector, y_value
 
 @app.callback(Output('coeffs table', 'figure'), [Input('feature-graphic','figure'),
                                                  Input('compound options dropdown','value'),
-                                                 Input('top drivers input','value')])
-def updatetabledata(figure,comp,top_nr_dri):
+                                                 Input('top drivers input','value'),
+                                                 Input('sector options dropdown', 'value')])
+def updatetabledata(figure,comp,top_nr_dri, mode):
     global dff
     dff = pd.DataFrame(data=[{'A': round(TyreModelCoeffs[0], 3), 'B': round(TyreModelCoeffs[1], 3),
                               'C': round(TyreModelCoeffs[2], 3), 'TyrePace': pace_tyre,'Session': str(User_Event.Name),
                               'PO': comp, 'Compound': actual_comp, 'TopDriversX':",".join(
                                   [str(items) for items in Driverlist]),
                               'Filtered Laps': ",".join(
-                                  [str(items) for items in laps])}])  # replace with your own data processing code
+                                  [str(items) for items in laps]),
+                              'Mode': str(mode)}])  # replace with your own data processing code
     new_table_figure = ff.create_table(dff)
     return new_table_figure
 
