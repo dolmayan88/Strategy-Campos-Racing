@@ -65,41 +65,71 @@ class Event():
         #One Single Access to DB
         self.CalendarDf=Event.getTotalTable("Calendar","Session_id",self.Name)
         self.TyreAllocDf=self.getTotalTable("TyreAlloc","Session",self.Name)
-        
+        try:
+            self.sessionmode = self.Name[5]
+        except:
+            pass
         if live:
             self.LapTimesDf=self.getdata(self.Name,livemargin,pdftiming,category) ######Check this is Miguel getdata
         else:
             if pdftiming:
                 self.LapTimesDf=self.getTotalTable("PdfTiming","Session",self.Name)
+                if self.sessionmode == 'T':
+                    df_longruns=pd.DataFrame()
+                    longrun_stints = []
+                    for groups in longrun_stints:
+                        if groups[2] == 8: #Only taking Stints with Laps greater than 8
+                            longrun_stints.append((groups[0], groups[1]))
+                    groupbydriver_stint=self.LapTimesDf.groupby(['driver','Stint'])
+                    for stints in longrun_stints:
+                        df = groupbydriver_stint.get_group(stints)
+                        df_longruns = pd.concat([df_longruns,df],axis=1)
+                    self.LapTimesDf = df_longruns
             else:
                 self.LapTimesDf=self.getTotalTable("RawTiming","Session",self.Name)
 
         self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name)>7 else ''
         self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name)>7 else 1
-        
+        # self.SessionMode = self.Name[5]
         self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1 if len(self.Name)>7 else 0
         self.PrimeCompound = "".join(c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
         self.OptionCompound = "".join(c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
-        self.DriverList = self.LapTimesDf.driver.unique().tolist() 
+        self.DriverList = self.LapTimesDf.driver.unique().tolist()
+
         self.NrofLaps = int(self.LapTimesDf.lap.max())
         # self.DriverStartPosition =self.TyreAllocDf[["driver","startpos"] if len(Naming_convention)>7 else ''
-        self.DriverEndPosition = self.LapTimesDf[['driver','position']][self.LapTimesDf.lap==self.NrofLaps]
-        self.DriverFinishLine= self.LapTimesDf['driver'][self.LapTimesDf.lap==self.NrofLaps]
+        self.DriverEndPosition = self.LapTimesDf[['driver', 'position']][self.LapTimesDf.lap == self.NrofLaps]
+        self.DriverFinishLine = self.LapTimesDf['driver'][self.LapTimesDf.lap == self.NrofLaps]
+
 
         #Now this is valid live or not live
         
         self.LapTimesDf["laptime"]=self.LapTimesDf.laptime.replace('','0:00.000').apply(lambda x: convert2time(x))
-        self.LapTimesDf["laptime_fuel_corrected"]=self.LapTimesDf.apply(lambda row: row.laptime + (row.lap-1)*self.TrackFuelPenalty,axis=1)
+
+        self.LapTimesDf["laptime_fuel_corrected"] = self.LapTimesDf.apply(
+            lambda row: row.laptime + (row.lap - 1) * self.TrackFuelPenalty, axis=1)
+
       
         if self.NrOfDifferentCompoundsUsed > 1:
             self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply (lambda row: self.label_compound(row), axis=1)
         else:
             self.LapTimesDf['Tyre_Compound'] = self.PrimeCompound
-            
-        self.LapTimesDf['pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
+        try:
+            if self.sessionmode != 'T':
+                self.LapTimesDf['pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
+        except:
+            pass
         self.LapTimesDf['Stint']=self.LapTimesDf['pits']+1
         self.LapTimesDf['StintLaps']=self.LapTimesDf.groupby(['driver','pits']).cumcount()+1
-        self.LapTimesDf['laptime_gap_corrected'] = self.LapTimesDf.apply(lambda row: row['laptime_fuel_corrected'] - Strategy.Driver.traffic_loss_fun(row.interval), axis=1)
+        try:
+            if self.sessionmode == 'T':
+
+                self.LapTimesDf["laptime_fuel_corrected"] = self.LapTimesDf.apply(lambda row: row.laptime + (row.StintLaps - 1) * self.TrackFuelPenalty, axis=1)
+        except:
+            pass
+
+        self.LapTimesDf['laptime_gap_corrected'] = self.LapTimesDf.apply(lambda row: row['laptime_fuel_corrected'] - Strategy.
+                                                                         Driver.traffic_loss_fun(row.interval), axis=1)
         self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.PrimeCompound]
         self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
         self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.OptionCompound]
