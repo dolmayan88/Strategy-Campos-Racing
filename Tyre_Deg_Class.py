@@ -370,7 +370,7 @@ app.layout = html.Div(children=[
                             html.Div(['Introduce the Event Naming Convention to analyse:',
                                 # dcc.Input(id = 'event input', type = 'text', value = ''),
                                 dcc.Dropdown(id = 'event input',
-                                             options = [{'label': i, 'value': i} for i in calendar[(calendar.pdf_flag=='1') & (calendar.session =='R')].session_id],
+                                             options = [{'label': i, 'value': i} for i in calendar[(calendar.pdf_flag=='1') & ((calendar.session !='P1') | (calendar.session =='Q1'))].session_id],
                                              multi = False,
                                              value = ''),
                                 # html.Button(
