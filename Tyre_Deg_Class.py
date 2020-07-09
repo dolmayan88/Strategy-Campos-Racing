@@ -71,7 +71,7 @@ class Event():
         self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name) > 7 else 1
         self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[
                                                             ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9',
-                                                             's10']].dropna().values)) - 1 if len(self.Name) > 7 else 0
+                                                             's10']].dropna().values)) if len(self.Name) > 7 else 0
         self.PrimeCompound = "".join(c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(
             self.Name) > 7 else ''
         self.OptionCompound = "".join(c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(
@@ -103,7 +103,7 @@ class Event():
                 self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name) > 7 else 1
                 self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[
                                                                     ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8',
-                                                                     's9', 's10']].dropna().values)) - 1 if len(
+                                                                     's9', 's10']].dropna().values)) if len(
                     self.Name) > 7 else 0
                 self.LapTimesDf['Stint'] = self.LapTimesDf['pits'] + 1
                 self.LapTimesDf['StintLaps'] = self.LapTimesDf.groupby(['driver', 'pits']).cumcount() + 1
@@ -143,13 +143,13 @@ class Event():
                     lambda row: row['laptime_fuel_corrected'] - Strategy.
                         Driver.traffic_loss_fun(row.interval), axis=1)
 
-            else:
+            else: #Race or FP/Q Mode
                 print('estoy entrando a NO test')
                 self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name) > 7 else ''
                 self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name) > 7 else 1
                 self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[
                                                                     ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8',
-                                                                     's9', 's10']].dropna().values)) - 1 if len(
+                                                                     's9', 's10']].dropna().values)) if len(
                     self.Name) > 7 else 0
                 self.LapTimesDf["laptime"] = self.LapTimesDf.laptime.replace('', '0:00.000').apply(
                     lambda x: convert2time(x))
@@ -166,14 +166,13 @@ class Event():
                     c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(self.Name) > 7 else ''
                 self.OptionCompound = "".join(
                     c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(self.Name) > 7 else ''
-                self.DriverList = self.LapTimesDf.driver.unique().tolist()
                 self.NrofLaps = int(self.LapTimesDf.lap.max())
+                print(self.NrofLaps)
                 self.DriverEndPosition = self.LapTimesDf[['driver', 'position']][self.LapTimesDf.lap == self.NrofLaps]
                 self.DriverFinishLine = self.LapTimesDf['driver'][self.LapTimesDf.lap == self.NrofLaps]
 
                 self.LapTimesDf['Stint'] = self.LapTimesDf['pits'] + 1
                 self.LapTimesDf['StintLaps'] = self.LapTimesDf.groupby(['driver', 'pits']).cumcount() + 1
-
                 self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.PrimeCompound]
                 self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
                 self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.OptionCompound]
@@ -295,57 +294,58 @@ class Event():
         
     def label_compound (self,row):
        for driver in self.DriverList:
+           print(driver)
            if row['driver'] == driver and row['pits'] == 0:
-               return self.TyreAllocDf['s1'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]        
+               return self.TyreAllocDf['s1'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 1:
-               if row['InPit']== 1:                    
-                   return self.TyreAllocDf['s1'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]                  
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s1'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
               
            if row['driver'] == driver and row['pits'] == 2:
-               if row['InPit']== 1:
+               if row['InPit'] == 1:
                    
-                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0] 
+                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 3:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 4:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 5:
                if row['InPit']== 1:
-                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 6:
                if row['InPit']== 1:
-                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 7:
                if row['InPit']== 1:
-                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            
            if row['driver'] == driver and row['pits'] == 8:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            
            if row['driver'] == driver and row['pits'] == 9:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s10'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s10'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                                   
     def TopXDrivers(self,top_number):
         if (self.sessionmode == 'T') or (str(top_number) == 'all'):
@@ -974,9 +974,9 @@ def update_table_database(nclicks):
 
 #####################MAIN PROGRAM##############################################                
 
-if __name__ == "__main__":
-
-    app.run_server(debug=False)
+# if __name__ == "__main__":
+#
+#     app.run_server(debug=False)
 
 # event=Event("F2_19R01BAH_R1",pdftiming=True)
 
