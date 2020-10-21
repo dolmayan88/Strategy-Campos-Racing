@@ -107,6 +107,7 @@ class Event():
                     self.Name) > 7 else 0
                 self.LapTimesDf['Stint'] = self.LapTimesDf['pits'] + 1
                 self.LapTimesDf['StintLaps'] = self.LapTimesDf.groupby(['driver', 'pits']).cumcount() + 1
+                self.DriverList = self.LapTimesDf.driver.unique().tolist()
                 if self.NrOfDifferentCompoundsUsed > 1:
                     self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply(lambda row: self.label_compound(row),
                                                                              axis=1)
@@ -129,7 +130,7 @@ class Event():
                 self.LapTimesDf['laptime_fuel_corrected'] = self.LapTimesDf.apply(
                     lambda row: row.laptime + (row.StintLaps - 1) * self.TrackFuelPenalty, axis=1)
 
-                self.DriverList = self.LapTimesDf.driver.unique().tolist()
+
                 self.NrofLaps = int(self.LapTimesDf['StintLaps'].max())
                 self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.PrimeCompound]
                 self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
@@ -766,13 +767,13 @@ def updatelapfilter(comp,top_nr_dri):
         maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(drivervalue)].max()
         print('entrando en max laps!!!')
         print(maxlaps)
-        lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
+        lapsoptions=[dict(label=str(i),value=i) for i in range(1, int(maxlaps))]
         lapsvalue=[d['value'] for d in lapsoptions]
 
     elif str.lower(comp) =='option':
 
         maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(drivervalue)].max()
-        lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
+        lapsoptions=[dict(label=str(i),value=i) for i in range(1, int(maxlaps))]
         lapsvalue=[d['value'] for d in lapsoptions]
 
     return lapsoptions,lapsvalue,driveroptions,drivervalue
@@ -974,9 +975,10 @@ def update_table_database(nclicks):
 
 #####################MAIN PROGRAM##############################################                
 
-# if __name__ == "__main__":
-#
-#     app.run_server(debug=False)
+if __name__ == "__main__":
+
+
+     app.run_server(debug=False)
 
 # event=Event("F2_19R01BAH_R1",pdftiming=True)
 
