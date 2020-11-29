@@ -62,10 +62,26 @@ class Event():
         self.Year = self.Name.split("_")[1][0:2] if len(self.Name)>7 else ''
         self.Track = self.Name.split("_")[1][5:8] if len(self.Name)>7 else ''
         self.Session = self.Name.split("_")[2] if len(self.Name)>7 else ''
+
         #One Single Access to DB
-        self.CalendarDf=Event.getTotalTable("Calendar","Session_id",self.Name)
+        self.CalendarDf=self.getTotalTable("Calendar","Session_id",self.Name)
         self.TyreAllocDf=self.getTotalTable("TyreAlloc","Session",self.Name)
-        
+
+        self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name) > 7 else ''
+        self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name) > 7 else 1
+        self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[
+                                                            ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9',
+                                                             's10']].dropna().values)) if len(self.Name) > 7 else 0
+        self.PrimeCompound = "".join(c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(
+            self.Name) > 7 else ''
+        self.OptionCompound = "".join(c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(
+            self.Name) > 7 else ''
+
+        try: #Session Mode R or T. Try is because at the beginning no Event is chosen.
+            self.sessionmode = self.Name[5]
+        except:
+            pass
+
         if live:
             self.LapTimesDf=self.getdata(self.Name,livemargin,pdftiming,category) ######Check this is Miguel getdata
         else:
@@ -74,38 +90,108 @@ class Event():
             else:
                 self.LapTimesDf=self.getTotalTable("RawTiming","Session",self.Name)
 
-        self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name)>7 else ''
-        self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name)>7 else 1
-        
-        self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[['s1', 's2','s3','s4','s5','s6','s7','s8','s9','s10']].dropna().values))-1 if len(self.Name)>7 else 0
-        self.PrimeCompound = "".join(c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
-        self.OptionCompound = "".join(c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(self.Name)>7 else ''
-        self.DriverList = self.LapTimesDf.driver.unique().tolist() 
-        self.NrofLaps = int(self.LapTimesDf.lap.max())
-        # self.DriverStartPosition =self.TyreAllocDf[["driver","startpos"] if len(Naming_convention)>7 else ''
-        self.DriverEndPosition = self.LapTimesDf[['driver','position']][self.LapTimesDf.lap==self.NrofLaps]
-        self.DriverFinishLine= self.LapTimesDf['driver'][self.LapTimesDf.lap==self.NrofLaps]
 
-        #Now this is valid live or not live
-        
-        self.LapTimesDf["laptime"]=self.LapTimesDf.laptime.replace('','0:00.000').apply(lambda x: convert2time(x))
-        self.LapTimesDf["laptime_fuel_corrected"]=self.LapTimesDf.apply(lambda row: row.laptime + (row.lap-1)*self.TrackFuelPenalty,axis=1)
-      
-        if self.NrOfDifferentCompoundsUsed > 1:
-            self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply (lambda row: self.label_compound(row), axis=1)
-        else:
-            self.LapTimesDf['Tyre_Compound'] = self.PrimeCompound
-            
-        self.LapTimesDf['pits']=self.LapTimesDf.apply(lambda row: self.label_pits(row),axis =1)
-        self.LapTimesDf['Stint']=self.LapTimesDf['pits']+1
-        self.LapTimesDf['StintLaps']=self.LapTimesDf.groupby(['driver','pits']).cumcount()+1
-        self.LapTimesDf['laptime_gap_corrected'] = self.LapTimesDf.apply(lambda row: row['laptime_fuel_corrected'] - Strategy.Driver.traffic_loss_fun(row.interval), axis=1)
-        self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.PrimeCompound]
-        self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
-        self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound']==self.OptionCompound]
-        self.MaxNrofLaps_Option = self.LapTimesDf_Option['StintLaps'].max()
-        self.DriverList_Prime = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.PrimeCompound].unique().tolist()
-        self.DriverList_Option = self.LapTimesDf['driver'][self.LapTimesDf['Tyre_Compound']==self.OptionCompound].unique().tolist()
+
+
+
+
+
+        try:
+            if self.sessionmode == 'T':
+                print('estoy entrando a SI test')
+                self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name) > 7 else ''
+                self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name) > 7 else 1
+                self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[
+                                                                    ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8',
+                                                                     's9', 's10']].dropna().values)) if len(
+                    self.Name) > 7 else 0
+                self.LapTimesDf['Stint'] = self.LapTimesDf['pits'] + 1
+                self.LapTimesDf['StintLaps'] = self.LapTimesDf.groupby(['driver', 'pits']).cumcount() + 1
+                self.DriverList = self.LapTimesDf.driver.unique().tolist()
+                if self.NrOfDifferentCompoundsUsed > 1:
+                    self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply(lambda row: self.label_compound(row),
+                                                                             axis=1)
+                else:
+                    self.LapTimesDf['Tyre_Compound'] = self.PrimeCompound
+                df_longruns = pd.DataFrame()
+                longrun_stints = []
+                groupbydriver_stint_stintlaps = self.LapTimesDf.groupby(['driver', 'Stint','StintLaps'])
+                for groups in groupbydriver_stint_stintlaps.groups.keys():
+                    if groups[2] == 12:  # Only taking Stints with Laps greater than 8
+                        longrun_stints.append((groups[0], groups[1]))
+                groupbydriver_stint = self.LapTimesDf.groupby(['driver', 'Stint'])
+                for stints in longrun_stints:
+                    df = groupbydriver_stint.get_group(stints)
+                    df_longruns = pd.concat([df_longruns, df], ignore_index=True)
+                print(df_longruns.to_string())
+                self.LapTimesDf = df_longruns.copy()
+                self.LapTimesDf["laptime"] = self.LapTimesDf.laptime.replace('', '0:00.000').apply(
+                    lambda x: convert2time(x))
+                self.LapTimesDf['laptime_fuel_corrected'] = self.LapTimesDf.apply(
+                    lambda row: row.laptime + (row.StintLaps - 1) * self.TrackFuelPenalty, axis=1)
+
+
+                self.NrofLaps = int(self.LapTimesDf['StintLaps'].max())
+                self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.PrimeCompound]
+                self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
+                self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.OptionCompound]
+                self.MaxNrofLaps_Option = self.LapTimesDf_Option['StintLaps'].max()
+                self.DriverList_Prime = self.LapTimesDf['driver'][
+                    self.LapTimesDf['Tyre_Compound'] == self.PrimeCompound].unique().tolist()
+                self.DriverList_Option = self.LapTimesDf['driver'][
+                    self.LapTimesDf['Tyre_Compound'] == self.OptionCompound].unique().tolist()
+                self.LapTimesDf['laptime_gap_corrected'] = self.LapTimesDf.apply(
+                    lambda row: row['laptime_fuel_corrected'] - Strategy.
+                        Driver.traffic_loss_fun(row.interval), axis=1)
+
+            else: #Race or FP/Q Mode
+                print('estoy entrando a NO test')
+                self.PdfFlag = int(self.CalendarDf['pdf_flag'].values) if len(self.Name) > 7 else ''
+                self.TrackFuelPenalty = float(self.CalendarDf['fuel_penalty'].values) if len(self.Name) > 7 else 1
+                self.NrOfDifferentCompoundsUsed = len(np.unique(self.TyreAllocDf[
+                                                                    ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8',
+                                                                     's9', 's10']].dropna().values)) if len(
+                    self.Name) > 7 else 0
+                self.LapTimesDf["laptime"] = self.LapTimesDf.laptime.replace('', '0:00.000').apply(
+                    lambda x: convert2time(x))
+                self.LapTimesDf["laptime_fuel_corrected"] = self.LapTimesDf.apply(
+                    lambda row: row.laptime + (row.lap - 1) * self.TrackFuelPenalty, axis=1)
+                self.LapTimesDf['pits'] = self.LapTimesDf.apply(lambda row: self.label_pits(row), axis=1)
+                self.DriverList = self.LapTimesDf.driver.unique().tolist()
+                if self.NrOfDifferentCompoundsUsed > 1:
+                    self.LapTimesDf['Tyre_Compound'] = self.LapTimesDf.apply(lambda row: self.label_compound(row),
+                                                                             axis=1)
+                else:
+                    self.LapTimesDf['Tyre_Compound'] = self.PrimeCompound
+                self.PrimeCompound = "".join(
+                    c for c in str(self.CalendarDf['Prime_Tyre'].values) if c.isupper()) if len(self.Name) > 7 else ''
+                self.OptionCompound = "".join(
+                    c for c in str(self.CalendarDf['Option_Tyre'].values) if c.isupper()) if len(self.Name) > 7 else ''
+                self.NrofLaps = int(self.LapTimesDf.lap.max())
+                print(self.NrofLaps)
+                self.DriverEndPosition = self.LapTimesDf[['driver', 'position']][self.LapTimesDf.lap == self.NrofLaps]
+                self.DriverFinishLine = self.LapTimesDf['driver'][self.LapTimesDf.lap == self.NrofLaps]
+
+                self.LapTimesDf['Stint'] = self.LapTimesDf['pits'] + 1
+                self.LapTimesDf['StintLaps'] = self.LapTimesDf.groupby(['driver', 'pits']).cumcount() + 1
+                self.LapTimesDf_Prime = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.PrimeCompound]
+                self.MaxNrofLaps_Prime = self.LapTimesDf_Prime['StintLaps'].max()
+                self.LapTimesDf_Option = self.LapTimesDf[self.LapTimesDf['Tyre_Compound'] == self.OptionCompound]
+                self.MaxNrofLaps_Option = self.LapTimesDf_Option['StintLaps'].max()
+                self.DriverList_Prime = self.LapTimesDf['driver'][
+                    self.LapTimesDf['Tyre_Compound'] == self.PrimeCompound].unique().tolist()
+                self.DriverList_Option = self.LapTimesDf['driver'][
+                    self.LapTimesDf['Tyre_Compound'] == self.OptionCompound].unique().tolist()
+                self.LapTimesDf['laptime_gap_corrected'] = self.LapTimesDf.apply(
+                    lambda row: row['laptime_fuel_corrected'] - Strategy.
+                    Driver.traffic_loss_fun(row.interval), axis=1)
+        except:
+            pass
+
+
+
+
+
     @staticmethod
     def getPartialTable(DDBBColumn,DDBBTable,DDBBColumnFilter=None,DDBBValueFilter=None):
 
@@ -209,64 +295,67 @@ class Event():
         
     def label_compound (self,row):
        for driver in self.DriverList:
+           print(driver)
            if row['driver'] == driver and row['pits'] == 0:
-               return self.TyreAllocDf['s1'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]        
+               return self.TyreAllocDf['s1'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 1:
-               if row['InPit']== 1:                    
-                   return self.TyreAllocDf['s1'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]                  
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s1'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
               
            if row['driver'] == driver and row['pits'] == 2:
-               if row['InPit']== 1:
+               if row['InPit'] == 1:
                    
-                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0] 
+                   return self.TyreAllocDf['s2'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 3:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s3'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 4:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s4'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 5:
                if row['InPit']== 1:
-                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s5'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 6:
                if row['InPit']== 1:
-                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s6'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            if row['driver'] == driver and row['pits'] == 7:
                if row['InPit']== 1:
-                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s7'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            
            if row['driver'] == driver and row['pits'] == 8:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s8'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
            
            if row['driver'] == driver and row['pits'] == 9:
-               if row['InPit']== 1:
-                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+               if row['InPit'] == 1:
+                   return self.TyreAllocDf['s9'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                else:
-                   return self.TyreAllocDf['s10'][self.TyreAllocDf['driver']==row['driver']].values.tolist()[0]
+                   return self.TyreAllocDf['s10'][self.TyreAllocDf['driver'] == row['driver']].values.tolist()[0]
                                   
     def TopXDrivers(self,top_number):
-        if top_number != 'all':
-            top_number = int(top_number)
-            top_driver_list=self.DriverEndPosition['driver'][self.DriverEndPosition['position']<top_number+1].tolist()
+        if (self.sessionmode == 'T') or (str(top_number) == 'all'):
+            top_driver_list = self.LapTimesDf.driver.unique()
         else:
-            top_driver_list=self.LapTimesDf.driver.unique()
+            top_number = int(top_number)
+            top_driver_list = self.DriverEndPosition['driver'][
+                self.DriverEndPosition['position'] < top_number + 1].tolist()
+
         return top_driver_list
                     
     def GetLaptimesOrDegMedianByDriver(self,laps_filter,compound,driverlist,y_values_mode,sector):
@@ -370,7 +459,7 @@ app.layout = html.Div(children=[
                             html.Div(['Introduce the Event Naming Convention to analyse:',
                                 # dcc.Input(id = 'event input', type = 'text', value = ''),
                                 dcc.Dropdown(id = 'event input',
-                                             options = [{'label': i, 'value': i} for i in calendar[(calendar.pdf_flag=='1') & (calendar.session =='R')].session_id],
+                                             options = [{'label': i, 'value': i} for i in calendar[(calendar.pdf_flag=='1') & ((calendar.session !='P1') | (calendar.session =='Q1'))].session_id],
                                              multi = False,
                                              value = ''),
                                 # html.Button(
@@ -678,13 +767,13 @@ def updatelapfilter(comp,top_nr_dri):
         maxlaps=User_Event.LapTimesDf_Prime['StintLaps'][User_Event.LapTimesDf_Prime['driver'].isin(drivervalue)].max()
         print('entrando en max laps!!!')
         print(maxlaps)
-        lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
+        lapsoptions=[dict(label=str(i),value=i) for i in range(1, int(maxlaps))]
         lapsvalue=[d['value'] for d in lapsoptions]
 
     elif str.lower(comp) =='option':
 
         maxlaps=User_Event.LapTimesDf_Option['StintLaps'][User_Event.LapTimesDf_Option['driver'].isin(drivervalue)].max()
-        lapsoptions=[dict(label=str(i),value=i) for i in range(1, maxlaps)]
+        lapsoptions=[dict(label=str(i),value=i) for i in range(1, int(maxlaps))]
         lapsvalue=[d['value'] for d in lapsoptions]
 
     return lapsoptions,lapsvalue,driveroptions,drivervalue
@@ -888,7 +977,8 @@ def update_table_database(nclicks):
 
 if __name__ == "__main__":
 
-    app.run_server(debug=False)
+
+     app.run_server(debug=False)
 
 # event=Event("F2_19R01BAH_R1",pdftiming=True)
 
