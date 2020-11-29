@@ -13,6 +13,7 @@ import os
 from multiprocessing import Process
 import concurrent.futures
 import statistics
+import pickle
 
 
 def plot_df(df, title='', xaxis='', yaxis=''):
@@ -522,6 +523,7 @@ class StrategyForecast():
         number_of_cars = self.number_of_cars
         drivers = [Driver(0, 'P ' + str(startingpos), startingpos) for startingpos in range(1, number_of_cars + 1)]
         summary_list = []
+        racelist = []
         for iter in range(iterations):
             strategies = []
             for driver in drivers:
@@ -530,11 +532,14 @@ class StrategyForecast():
                                                  name=event.name + ' ' + driver.name + ' ' +
                                                       str([t.name for t in singlestrategy.tyrelist])
                                                       + ' ' + str(singlestrategy.lapslist)))
-            summary_list.append(Race(event, strategies, traffic_it, traffic_tolerance).summary())
+            myrace = Race(event, strategies, traffic_it, traffic_tolerance)
+            racelist.append(myrace)
+            summary_list.append(myrace.summary())
             print("\r\t> Progress\t:{:.2%}".format((iter + 1) / iterations), end='')
         summary_df = summary_list[0].append(summary_list[1:])
         print('\nMonte-Carlo elapsed time: ' + str(time.time() - start))
-        return summary_df
+        return summary_df, racelist
+
 
 if __name__ == '__main__':
     forecast = StrategyForecast()
@@ -551,7 +556,7 @@ if __name__ == '__main__':
     plot_race(best_strategies_race_traffic_10, 'Best Strategies Traffic').write_html(forecast.eventname +
                                                                                   '_10_Best_Strategies_traffic.html')
     plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
-    summary = forecast.montecarlo(best_strategies,1000,5, 100)
+    summary, racelist = forecast.montecarlo(best_strategies_10,1000,5, 100)
     for startingP in summary.starting_position.unique():
         boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
                                                                                              '_Final_Position_startingP'
