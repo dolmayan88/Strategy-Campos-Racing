@@ -67,7 +67,7 @@ def plot_scenario(race, name):
                       row=2, col=1)
     for column in race.strategy.compounddeltatime.columns:
         fig.add_trace(go.Scatter(x=[x + 1 for x in list(race.strategy.compounddeltatime.index)],
-                                 y=race.strategy.compounddeltatime[column],
+                                 y=race.strategy.compounddeltatime[column].cumsum(),
                                  mode='lines',
                                  name=column),
                       row=2, col=2)
@@ -228,6 +228,22 @@ class Event:
         df['tyre'] = df.apply(lambda row: Tyre(row.A, row.B, row.C, row.TyrePace - bpace, row.Compound), axis=1)
         return df
 
+    def SC_delta(self):
+        compoundloss = pandas.DataFrame()
+        compounddeltatime = pandas.DataFrame()
+        tyre_list = set(self.tyres)
+        if len(tyre_list) > 1:
+            tyre_combinations = list(itertools.product(tyre_list, repeat=2))
+            for tyre_pair in tyre_combinations:
+                temp=[]
+                for lap in range(1,self.laps):
+                    tyre1 = list(tyre_pair[0].loss_fun(self.laps).values())[lap:]
+                    tyre2 = list(tyre_pair[1].loss_fun(self.laps-lap).values())
+                    temp.append(-np.sum(tyre1) + np.sum(tyre2))
+                compounddeltatime[tyre_pair[0].name + ' to ' + tyre_pair[1].name] = temp
+
+        return compounddeltatime
+
 
 class DriverStrategy:
 
@@ -305,7 +321,7 @@ class Strategy:
         self.winner = min(self.racetimes, key=self.racetimes.get)
         self.quickestavg = min(self.avgtimes.values())
         self.undercut = self.undercut_fun(20)
-        self.compounddeltatime = self.compounddeltatime_fun(20)
+        self.compounddeltatime = self.compounddeltatime_fun(30)
         self.raceplot = self.raceplot_fun()
         self.laptimes_df = self.laptimes_df_fun()
         self.gaps_df = self.gaps_df_fun()
@@ -346,7 +362,7 @@ class Strategy:
             tyre_combinations = list(itertools.combinations(tyre_list, 2))
             for tyre in tyre_list:
                 compoundloss[tyre.name] = list(tyre.loss_fun(laps).values())
-                compoundloss[tyre.name] = compoundloss[tyre.name].cumsum()
+                compoundloss[tyre.name] = compoundloss[tyre.name]
             for tyre_pair in tyre_combinations:
                 compounddeltatime[tyre_pair[0].name + ' vs ' + tyre_pair[1].name] = \
                     compoundloss[tyre_pair[1].name] - compoundloss[tyre_pair[0].name]
@@ -463,15 +479,16 @@ class Data:
                                         list(self.tyremodels.Session.unique()))]
         eventname = str(input('Input event name from the available events: '))
         stopn = int(input('Input max number of stops: '))
+        minstopn = int(input('Input minimum number of stops: '))
         repeat_tyres = input('Can we repeat tyre compound: ').lower() in ['true', '1', 'y', 'yes', 'si', 's']
         first_stop_window = int(input('In which lap does the pit-window open? '))
         number_of_cars = int(input('How many cars are racing? '))
-        return eventname, stopn, repeat_tyres, first_stop_window, number_of_cars
+        return eventname, stopn, minstopn, repeat_tyres, first_stop_window, number_of_cars
 
 class StrategyForecast():
 
     def __init__(self):
-        self.eventname, self.stopn, self.repeat_tyres, self.first_stop_window, self.number_of_cars = Data().get_inputs()
+        self.eventname, self.stopn, self.minstopn, self.repeat_tyres, self.first_stop_window, self.number_of_cars = Data().get_inputs()
         self.event = Event(self.eventname)
         self.tyres = self.event.tyres
 
@@ -480,10 +497,10 @@ class StrategyForecast():
         start = time.time()
         tyreoptions = []
         if self.repeat_tyres:
-            for stops in range(1, int(self.stopn) + 1):
+            for stops in range(int(self.minstopn), int(self.stopn) + 1):
                 tyreoptions += [list(item) for item in list(itertools.product(self.tyres, repeat = stops + 1))]
         else:
-            for stops in range(1, int(self.stopn) + 1):
+            for stops in range(int(self.minstopn), int(self.stopn) + 1):
                 tyreoptions += [list(item) for item in list(itertools.permutations(self.tyres, stops + 1))]
         lapoptions = list([list(seq) for i in range(0, int(self.stopn + 2))
                      for seq in itertools.permutations(list(range(1, self.event.laps + 1)), i) if sum(seq) == self.event.laps])
@@ -541,14 +558,16 @@ class StrategyForecast():
         return summary_df, racelist
 
 
+
 if __name__ == '__main__':
     forecast = StrategyForecast()
     best_strategies = forecast.best_strategies(5)
-    best_strategies_10 = forecast.best_strategies(10)
+    best_strategies_10 = forecast.best_strategies(15)
     best_strategies_race = Race(forecast.event,best_strategies)
     best_strategies_race_10 = Race(forecast.event,best_strategies_10)
     best_strategies_race_traffic = Race(forecast.event,best_strategies,100,0.5)
     best_strategies_race_traffic_10 = Race(forecast.event,best_strategies_10,100,0.5)
+    forecast.event.SC_delta()
     plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
     plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
                                                                                   '_Best_Strategies_traffic.html')
@@ -578,6 +597,12 @@ if __name__ == '__main__':
 
     summary.to_csv(forecast.eventname + '_summary.csv')
     best_strategies_startingposition.to_csv(forecast.eventname + '_best_strategies_startingposition.csv')
+
+
+
+
+
+
 
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     print('working')
