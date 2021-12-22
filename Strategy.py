@@ -151,12 +151,13 @@ def intersection(lst1, lst2):
 
 class Tyre:
 
-    def __init__(self, a, b, c, delta_pace=0, name=''):
+    def __init__(self, a, b, c, delta_pace=0, name='', stint=''):
         self.name = name
         self.delta_pace = delta_pace
         self.a = a
         self.b = b
         self.c = c
+        self.Stint = stint
 
     def eq_model(self, lap, a, b, c):
         return a*lap+b*np.exp(c*lap) + self.delta_pace
@@ -225,7 +226,7 @@ class Event:
     def tyremodels(self):
         df = self.data.tyremodels[self.data.tyremodels.Session==self.name].copy()
         bpace = df.TyrePace.min()
-        df['tyre'] = df.apply(lambda row: Tyre(row.A, row.B, row.C, row.TyrePace - bpace, row.Compound), axis=1)
+        df['tyre'] = df.apply(lambda row: Tyre(row.A, row.B, row.C, row.TyrePace - bpace, row.Compound, row.Stint), axis=1)
         return df
 
     def SC_delta(self):
@@ -240,7 +241,7 @@ class Event:
                     tyre1 = list(tyre_pair[0].loss_fun(self.laps).values())[lap:]
                     tyre2 = list(tyre_pair[1].loss_fun(self.laps-lap).values())
                     temp.append(-np.sum(tyre1) + np.sum(tyre2))
-                compounddeltatime[tyre_pair[0].name + ' to ' + tyre_pair[1].name] = temp
+                compounddeltatime[tyre_pair[0].name + tyre_pair[0].Stint + ' to ' + tyre_pair[1].name + tyre_pair[1].Stint] = temp
 
         return compounddeltatime
 
@@ -492,16 +493,27 @@ class StrategyForecast():
         self.event = Event(self.eventname)
         self.tyres = self.event.tyres
 
-    def strategy_options(self):
+    def strategy_options(self, stint_sorted=False):
         print('Computing...')
         start = time.time()
         tyreoptions = []
-        if self.repeat_tyres:
-            for stops in range(int(self.minstopn), int(self.stopn) + 1):
-                tyreoptions += [list(item) for item in list(itertools.product(self.tyres, repeat = stops + 1))]
+        if stint_sorted==False:
+            if self.repeat_tyres:
+                for stops in range(int(self.minstopn), int(self.stopn) + 1):
+                    tyreoptions += [list(item) for item in list(itertools.product(self.tyres, repeat = stops + 1))]
+            else:
+                for stops in range(int(self.minstopn), int(self.stopn) + 1):
+                    tyreoptions += [list(item) for item in list(itertools.permutations(self.tyres, stops + 1))]
         else:
-            for stops in range(int(self.minstopn), int(self.stopn) + 1):
-                tyreoptions += [list(item) for item in list(itertools.permutations(self.tyres, stops + 1))]
+            stop = 0
+            tyres=[tyre for tyre in self.tyres if tyre.Stint != None]
+            while stop <= self.stopn:
+                stop += 1
+                if stop >= self.minstopn:
+                    tyreoptions += [[mytyre for mytyre in tyres if int(mytyre.Stint) == stop]]
+            tyreoptions = [list(item) for item in list(itertools.chain(itertools.product(*tyreoptions)))]
+            print(tyreoptions)
+
         lapoptions = list([list(seq) for i in range(0, int(self.stopn + 2))
                      for seq in itertools.permutations(list(range(1, self.event.laps + 1)), i) if sum(seq) == self.event.laps])
         print('options elapsed time: ' + str(time.time() - start))
@@ -519,8 +531,8 @@ class StrategyForecast():
         print(str(len(strategies)) + ' strategy options elapsed time: ' + str(time.time() - start))
         return strategies
 
-    def best_strategies(self, nstrategies):
-        strategies = self.strategy_options()
+    def best_strategies(self, nstrategies, stint_sorted=False):
+        strategies = self.strategy_options(stint_sorted)
         start = time.time()
         myrace = Race(self.event, strategies)
         print('Best strategy: ' + str(list(
@@ -531,9 +543,9 @@ class StrategyForecast():
         print('Best strategies time: '+ str(time.time() - start))
         return winnerstrategies
 
-    def montecarlo(self, winnerstrategies=False, iterations=1000, nstrategies=5, traffic_it=10, traffic_tolerance=2):
+    def montecarlo(self, winnerstrategies=False, iterations=1000, nstrategies=5, traffic_it=10, traffic_tolerance=2, stint_sorted=False):
         if not winnerstrategies:
-            winnerstrategies = self.best_strategies(nstrategies)
+            winnerstrategies = self.best_strategies(nstrategies, stint_sorted)
         start = time.time()
         print('Computing Monte-Carlo...')
         event = self.event
@@ -560,43 +572,55 @@ class StrategyForecast():
 
 
 if __name__ == '__main__':
+    option1 = Tyre(0.12,0.069,0.339,1,'option1')
+    option2 = Tyre(0.09,0.152,0.26,0.5,'option2')
+    prime1 = Tyre(-0.087,0.7,0.081,0.8,'prime1')
+    prime2 = Tyre(-0.063,0.314,0.121,0.1,'prime2')
     forecast = StrategyForecast()
-    best_strategies = forecast.best_strategies(5)
-    best_strategies_10 = forecast.best_strategies(15)
+    # best_strategies = forecast.best_strategies(5, stint_sorted=True)
+    # best_strategies_10 = forecast.best_strategies(15, stint_sorted=True)
+    best_strategies = [DriverStrategy([i,forecast.event.laps-i],[option1,prime2],Driver(),forecast.event,str([i,forecast.event.laps-i]) + '// SS-M') for i in range(6,15)] + \
+                      [DriverStrategy([i,forecast.event.laps-i],[prime1,option2],Driver(),forecast.event,str([i,forecast.event.laps-i]) + '// M-SS') for i in range(15,forecast.event.laps)] +\
+                      [DriverStrategy([forecast.event.laps],[prime1],Driver(),forecast.event,str('M'))]
+
     best_strategies_race = Race(forecast.event,best_strategies)
-    best_strategies_race_10 = Race(forecast.event,best_strategies_10)
+    # best_strategies_race_10 = Race(forecast.event,best_strategies_10)
     best_strategies_race_traffic = Race(forecast.event,best_strategies,100,0.5)
-    best_strategies_race_traffic_10 = Race(forecast.event,best_strategies_10,100,0.5)
+    # best_strategies_race_traffic_10 = Race(forecast.event,best_strategies_10,100,0.5)
     forecast.event.SC_delta()
-    plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
-    plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
-                                                                                  '_Best_Strategies_traffic.html')
-    plot_race(best_strategies_race_10, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
-    plot_race(best_strategies_race_traffic_10, 'Best Strategies Traffic').write_html(forecast.eventname +
-                                                                                  '_10_Best_Strategies_traffic.html')
-    plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
-    summary, racelist = forecast.montecarlo(best_strategies_10,1000,5, 100)
-    for startingP in summary.starting_position.unique():
-        boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
-                                                                                             '_Final_Position_startingP'
-                                                                                                 + str(startingP) +
-                                                                                                 '.html')
 
-    px.box(summary, x='starting_position', y='position').write_html(forecast.eventname + '_startingP_vs_finalP.html')
-    webbrowser.open(forecast.eventname + '_Best_Strategies.html')
-    webbrowser.open(forecast.eventname + '_Best_Strategies_traffic.html')
-    webbrowser.open(forecast.eventname + '_Scenario.html')
+    do=False
+    if do==True:
+        plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
+        plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
+                                                                                      '_Best_Strategies_traffic.html')
+        # plot_race(best_strategies_race_10, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
+        # plot_race(best_strategies_race_traffic_10, 'Best Strategies Traffic').write_html(forecast.eventname +
+        #                                                                               '_10_Best_Strategies_traffic.html')
+        plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
+        # summary, racelist = forecast.montecarlo(best_strategies_10,1000,5, 100, stint_sorted=True)
+        summary, racelist = forecast.montecarlo(best_strategies,1000,5, 100, stint_sorted=True)
+        for startingP in summary.starting_position.unique():
+            boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
+                                                                                                 '_Final_Position_startingP'
+                                                                                                     + str(startingP) +
+                                                                                                     '.html')
 
-    df = summary.groupby(by=['name']).position.median()
-    df2 = summary.groupby(by=['name']).starting_position.median()
-    df3 = pandas.concat([df, df2], axis=1)
-    df3['myrank'] = df3.groupby('starting_position').position.rank(method='dense')
-    best_strategies_startingposition = df3[df3.myrank == 1]
-    print('Best Strategies for each starting position:')
-    print(best_strategies_startingposition)
+        px.box(summary, x='starting_position', y='position').write_html(forecast.eventname + '_startingP_vs_finalP.html')
+        webbrowser.open(forecast.eventname + '_Best_Strategies.html')
+        webbrowser.open(forecast.eventname + '_Best_Strategies_traffic.html')
+        webbrowser.open(forecast.eventname + '_Scenario.html')
 
-    summary.to_csv(forecast.eventname + '_summary.csv')
-    best_strategies_startingposition.to_csv(forecast.eventname + '_best_strategies_startingposition.csv')
+        df = summary.groupby(by=['name']).position.median()
+        df2 = summary.groupby(by=['name']).starting_position.median()
+        df3 = pandas.concat([df, df2], axis=1)
+        df3['myrank'] = df3.groupby('starting_position').position.rank(method='dense')
+        best_strategies_startingposition = df3[df3.myrank == 1]
+        print('Best Strategies for each starting position:')
+        print(best_strategies_startingposition)
+
+        summary.to_csv(forecast.eventname + '_summary.csv')
+        best_strategies_startingposition.to_csv(forecast.eventname + '_best_strategies_startingposition.csv')
 
 
 
