@@ -1,3 +1,5 @@
+
+
 # -*- coding: utf-8 -*-
 """
 Created on Fri Mar 13 11:10:17 2020
@@ -1054,4 +1056,5 @@ if __name__ == "__main__":
 # STEP 3 Option B) df_ddbb_compounds.to_sql('TyreAlloc', con=db, if_exists='append') if we want to just add a new event
 # STEP 4 conn.close()
 #        db.dispose()
+
 ###############################################################################
