@@ -573,16 +573,16 @@ class StrategyForecast():
 
 
 if __name__ == '__main__':
-    # option1 = Tyre(0.293,0,1,0.577,'SS')
-    # option2 = Tyre(0.293,0,1,0.577,'SS')
-    # prime1 = Tyre(0.098,0,1,0.521,'M1')
-    # prime2 = Tyre(0.033,0,1,0,'M2')
+    option1 = Tyre(0.12,0.069,0.339,1,'option1')
+    option2 = Tyre(0.09,0.152,0.26,0.5,'option2')
+    prime1 = Tyre(-0.087,0.7,0.081,0.8,'prime1')
+    prime2 = Tyre(-0.063,0.314,0.121,0.1,'prime2')
     forecast = StrategyForecast()
-    best_strategies = forecast.best_strategies(15, stint_sorted=False)
-    best_strategies_10 = forecast.best_strategies(15, stint_sorted=False)
-    # best_strategies = [DriverStrategy([i,forecast.event.laps-i],[option1,prime2],Driver(),forecast.event,str([i,forecast.event.laps-i]) + '// SS-M') for i in range(6,25)] + \
-    #                   [DriverStrategy([i,forecast.event.laps-i],[prime1,option2],Driver(),forecast.event,str([i,forecast.event.laps-i]) + '// M-SS') for i in range(10,forecast.event.laps)] +\
-    #                   [DriverStrategy([forecast.event.laps],[prime1],Driver(),forecast.event,str('MM'))]
+    # best_strategies = forecast.best_strategies(5, stint_sorted=True)
+    # best_strategies_10 = forecast.best_strategies(15, stint_sorted=True)
+    best_strategies = [DriverStrategy([i,forecast.event.laps-i],[option1,prime2],Driver(),forecast.event,str([i,forecast.event.laps-i]) + '// SS-M') for i in range(6,15)] + \
+                      [DriverStrategy([i,forecast.event.laps-i],[prime1,option2],Driver(),forecast.event,str([i,forecast.event.laps-i]) + '// M-SS') for i in range(15,forecast.event.laps)] +\
+                      [DriverStrategy([forecast.event.laps],[prime1],Driver(),forecast.event,str('M'))]
 
     best_strategies_race = Race(forecast.event,best_strategies)
     # best_strategies_race_10 = Race(forecast.event,best_strategies_10)
@@ -590,38 +590,38 @@ if __name__ == '__main__':
     # best_strategies_race_traffic_10 = Race(forecast.event,best_strategies_10,100,0.5)
     forecast.event.SC_delta()
 
-    # do=False
-    # if do==True:
-    plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
-    plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
-                                                                                  '_Best_Strategies_traffic.html')
-    # plot_race(best_strategies_race_10, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
-    # plot_race(best_strategies_race_traffic_10, 'Best Strategies Traffic').write_html(forecast.eventname +
-    #                                                                               '_10_Best_Strategies_traffic.html')
-    plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
-    # summary, racelist = forecast.montecarlo(best_strategies_10,1000,5, 100, stint_sorted=True)
-    summary, racelist = forecast.montecarlo(best_strategies,1000,5, 100, stint_sorted=True)
-    for startingP in summary.starting_position.unique():
-        boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
-                                                                                             '_Final_Position_startingP'
-                                                                                                 + str(startingP) +
-                                                                                                 '.html')
+    do=False
+    if do==True:
+        plot_race(best_strategies_race, 'Best Strategies').write_html(forecast.eventname + '_Best_Strategies.html')
+        plot_race(best_strategies_race_traffic, 'Best Strategies Traffic').write_html(forecast.eventname +
+                                                                                      '_Best_Strategies_traffic.html')
+        # plot_race(best_strategies_race_10, 'Best Strategies').write_html(forecast.eventname + '_10_Best_Strategies.html')
+        # plot_race(best_strategies_race_traffic_10, 'Best Strategies Traffic').write_html(forecast.eventname +
+        #                                                                               '_10_Best_Strategies_traffic.html')
+        plot_scenario(best_strategies_race, 'Scenario').write_html(forecast.eventname + '_Scenario.html')
+        # summary, racelist = forecast.montecarlo(best_strategies_10,1000,5, 100, stint_sorted=True)
+        summary, racelist = forecast.montecarlo(best_strategies,1000,5, 100, stint_sorted=True)
+        for startingP in summary.starting_position.unique():
+            boxplot_df(summary[summary.starting_position==startingP], 'name', 'position').write_html(forecast.eventname +
+                                                                                                 '_Final_Position_startingP'
+                                                                                                     + str(startingP) +
+                                                                                                     '.html')
 
-    px.box(summary, x='starting_position', y='position').write_html(forecast.eventname + '_startingP_vs_finalP.html')
-    webbrowser.open(forecast.eventname + '_Best_Strategies.html')
-    webbrowser.open(forecast.eventname + '_Best_Strategies_traffic.html')
-    webbrowser.open(forecast.eventname + '_Scenario.html')
+        px.box(summary, x='starting_position', y='position').write_html(forecast.eventname + '_startingP_vs_finalP.html')
+        webbrowser.open(forecast.eventname + '_Best_Strategies.html')
+        webbrowser.open(forecast.eventname + '_Best_Strategies_traffic.html')
+        webbrowser.open(forecast.eventname + '_Scenario.html')
 
-    df = summary.groupby(by=['name']).position.median()
-    df2 = summary.groupby(by=['name']).starting_position.median()
-    df3 = pandas.concat([df, df2], axis=1)
-    df3['myrank'] = df3.groupby('starting_position').position.rank(method='dense')
-    best_strategies_startingposition = df3[df3.myrank == 1]
-    print('Best Strategies for each starting position:')
-    print(best_strategies_startingposition)
+        df = summary.groupby(by=['name']).position.median()
+        df2 = summary.groupby(by=['name']).starting_position.median()
+        df3 = pandas.concat([df, df2], axis=1)
+        df3['myrank'] = df3.groupby('starting_position').position.rank(method='dense')
+        best_strategies_startingposition = df3[df3.myrank == 1]
+        print('Best Strategies for each starting position:')
+        print(best_strategies_startingposition)
 
-    summary.to_csv(forecast.eventname + '_summary.csv')
-    best_strategies_startingposition.to_csv(forecast.eventname + '_best_strategies_startingposition.csv')
+        summary.to_csv(forecast.eventname + '_summary.csv')
+        best_strategies_startingposition.to_csv(forecast.eventname + '_best_strategies_startingposition.csv')
 
 
 
