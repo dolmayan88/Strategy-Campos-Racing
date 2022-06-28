@@ -1008,14 +1008,15 @@ def send_model_to_DDBB(my_input):
     return dict(display='none')
 
 @app.callback([Output('database_table', 'data'),
-               Output('database_table', 'filter_query')],
+               # Output('database_table', 'filter_query')
+               ],
               [Input('update_table_button', 'n_clicks')])
 def update_table_database(nclicks):
     global tyremodels
     User_Event = Event()
     tyremodels = User_Event.TyreModelsDB
     tyremodels['id'] = tyremodels.AI
-    return tyremodels.to_dict('records'), ''
+    return tyremodels.to_dict('records') #, ''
 
 #####################MAIN PROGRAM##############################################                
 
