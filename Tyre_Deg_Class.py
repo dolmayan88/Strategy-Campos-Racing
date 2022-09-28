@@ -361,7 +361,8 @@ class Event():
         return top_driver_list
                     
     def GetLaptimesOrDegMedianByDriver(self,laps_filter,compound,stint,driverlist,y_values_mode,sector):
-        global pace_tyre
+        global pace_tyre, pace_tyre_corr
+
         """
        Inputs:
            driverlist -> Here we can enter the filter for the drivers. 
@@ -390,7 +391,7 @@ class Event():
                 y_median_laptime_values=[laptimes_df[sector][laptimes_df['StintLaps']==lap].median() for lap in laps_filter]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
 #                x_median_values=list(range(1,laps+1))
-                pace_tyre=min(y_median_laptime_values)
+                pace_tyre=min(y_median_laptime_values)-pace_tyre_corr
                 if str.lower(y_values_mode) =='lap':
                     return y_median_laptime_values
                 else:
@@ -404,7 +405,7 @@ class Event():
 #                laps = LapTimesDf_SelectedDrivers['StintLaps'].max()
                 y_median_laptime_values=[LapTimesDf_SelectedDrivers[sector][(LapTimesDf_SelectedDrivers['StintLaps']==lap) & (LapTimesDf_SelectedDrivers['InPit']==0)].median() for lap in laps_filter]
                 y_median_deg_values=y_median_laptime_values-np.nanmin(np.array(y_median_laptime_values))
-                pace_tyre = min(y_median_laptime_values)
+                pace_tyre = min(y_median_laptime_values)-pace_tyre_corr
 #                x_median_values=list(range(1,laps+1))
                 if str.lower(y_values_mode) =='lap':
                     return y_median_laptime_values
@@ -412,7 +413,7 @@ class Event():
                     return y_median_deg_values
                    
     def TyreModelCoeffs(self,laps,laptimes, linear = False):
-        
+        global pace_tyre_corr
 #        global y_weight
         g=[0.25,0.25,0.25]
 #        y_weight = np.empty(len(laptimes))
@@ -424,13 +425,15 @@ class Event():
         else:
             bounds = (-np.inf, np.inf)
         coeff,cov = curve_fit(Eq_Model,laps,laptimes, bounds=bounds)#,sigma=y_weight,absolute_sigma=True)
+        pace_tyre_corr = Eq_Model(laps[0],*coeff)
         try:
             return coeff.tolist(),cov.tolist()
         except:
             return[0,0,0],[0,0,0]
 
 ######################DASH APP#################################################
-
+global pace_tyre_corr
+pace_tyre_corr=0
 User_Event = Event()
 calendar = User_Event.CalendarDB
 tyremodels = User_Event.TyreModelsDB
