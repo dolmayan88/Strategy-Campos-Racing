@@ -1,5 +1,3 @@
-setuptools
-distutils
 asyncio==3.4.3
 attrs==19.3.0
 Brotli==1.0.7
